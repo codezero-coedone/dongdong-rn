@@ -10,6 +10,7 @@ export interface MultiSelectProps<T extends string> {
   values: T[];
   onChange: (values: T[]) => void;
   disabled?: boolean;
+  renderExpanded?: (value: T) => React.ReactNode;
 }
 
 export function MultiSelect<T extends string>({
@@ -17,6 +18,7 @@ export function MultiSelect<T extends string>({
   values,
   onChange,
   disabled = false,
+  renderExpanded,
 }: MultiSelectProps<T>) {
   const handleToggle = (value: T) => {
     if (disabled) return;
@@ -34,24 +36,32 @@ export function MultiSelect<T extends string>({
         const isSelected = values.includes(option.value);
 
         return (
-          <Pressable
-            key={option.value}
-            onPress={() => handleToggle(option.value)}
-            disabled={disabled}
-            className={`h-14 px-4 rounded-xl justify-center ${
-              isSelected
-                ? "border-2 border-blue-500 bg-blue-50"
-                : "border border-gray-200 bg-white"
-            } ${disabled ? "opacity-50" : ""}`}
-          >
-            <Text
-              className={`text-base ${
-                isSelected ? "text-blue-600 font-medium" : "text-gray-400"
-              }`}
+          <View key={option.value}>
+            <Pressable
+              onPress={() => handleToggle(option.value)}
+              disabled={disabled}
+              className={`h-14 px-4 rounded-xl justify-center ${
+                isSelected
+                  ? "border-2 border-blue-500 bg-white"
+                  : "border border-gray-200 bg-white"
+              } ${disabled ? "opacity-50" : ""}`}
             >
-              {option.label}
-            </Text>
-          </Pressable>
+              <Text
+                className={`text-base ${
+                  isSelected ? "text-blue-600 font-medium" : "text-gray-400"
+                }`}
+              >
+                {option.label}
+              </Text>
+            </Pressable>
+
+            {/* 아코디언 확장 영역 */}
+            {isSelected && renderExpanded && (
+              <View className="mt-2 ml-2 pl-4 border-l-2 border-blue-200">
+                {renderExpanded(option.value)}
+              </View>
+            )}
+          </View>
         );
       })}
     </View>

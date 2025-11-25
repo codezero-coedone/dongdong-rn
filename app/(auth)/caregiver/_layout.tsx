@@ -10,6 +10,7 @@ export default function CaregiverLayout() {
     >
       <Stack.Screen name="register" />
       <Stack.Screen name="qualification" />
+      <Stack.Screen name="work-preference" />
     </Stack>
   );
 }

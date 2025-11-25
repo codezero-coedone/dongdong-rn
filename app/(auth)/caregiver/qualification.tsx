@@ -1,3 +1,4 @@
+import { useCaregiverRegistrationStore } from "@/features/caregiver";
 import {
   Button,
   CAREGIVER_CERTIFICATE_OPTIONS,
@@ -7,33 +8,121 @@ import {
   RadioButtonGroup,
 } from "@/shared/ui";
 import { useRouter } from "expo-router";
-import { useState } from "react";
 import {
   Keyboard,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   Text,
+  TextInput,
   TouchableWithoutFeedback,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-type ExperienceType = "newcomer" | "experienced" | null;
-
 export default function CaregiverQualificationScreen() {
   const router = useRouter();
+  const { qualification, updateQualification, isStepValid } =
+    useCaregiverRegistrationStore();
 
-  const [certificates, setCertificates] = useState<string[]>([]);
-  const [experience, setExperience] = useState<ExperienceType>(null);
+  // 자격증 이미지 업로드
+  const handleCertificateUpload = (certType: string) => {
+    // TODO: 이미지 피커 연동
+    updateQualification({
+      certificateImages: {
+        ...qualification.certificateImages,
+        [certType]: "uploaded",
+      },
+    });
+  };
 
-  // 폼 유효성 검사
-  const isFormValid = certificates.length > 0 && experience !== null;
+  const isFormValid = isStepValid(2);
 
   const handleNext = () => {
     if (!isFormValid) return;
-    console.log({ certificates, experience });
-    // TODO: 다음 화면으로 이동
+    router.push("/(auth)/caregiver/work-preference");
+  };
+
+  // 자격증 아코디언 렌더링
+  const renderCertificateExpanded = (certType: string) => (
+    <Pressable
+      onPress={() => handleCertificateUpload(certType)}
+      className="h-24 border border-dashed border-gray-300 rounded-xl items-center justify-center bg-gray-50"
+    >
+      {qualification.certificateImages[certType] ? (
+        <View className="items-center">
+          <Text className="text-2xl text-green-500 mb-1">✓</Text>
+          <Text className="text-sm text-gray-600">업로드 완료</Text>
+        </View>
+      ) : (
+        <View className="items-center">
+          <View className="w-8 h-8 rounded-full border-2 border-dashed border-gray-400 items-center justify-center mb-2">
+            <Text className="text-lg text-gray-400">+</Text>
+          </View>
+          <Text className="text-sm text-blue-500">자격증 등록하기</Text>
+        </View>
+      )}
+    </Pressable>
+  );
+
+  // 경력 아코디언 렌더링
+  const renderExperienceExpanded = (value: string) => {
+    if (value !== "experienced") return null;
+
+    return (
+      <View className="gap-3">
+        {/* 년/개월 */}
+        <View className="flex-row gap-3">
+          <View className="flex-1">
+            <TextInput
+              value={qualification.experienceYears}
+              onChangeText={(text) =>
+                updateQualification({ experienceYears: text })
+              }
+              placeholder="년"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="number-pad"
+              className="h-14 px-4 border border-gray-200 rounded-xl text-base text-gray-900 text-center"
+            />
+          </View>
+          <View className="flex-1">
+            <TextInput
+              value={qualification.experienceMonths}
+              onChangeText={(text) =>
+                updateQualification({ experienceMonths: text })
+              }
+              placeholder="개월"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="number-pad"
+              className="h-14 px-4 border border-gray-200 rounded-xl text-base text-gray-900 text-center"
+            />
+          </View>
+        </View>
+
+        {/* 주요 근무 이력 */}
+        <TextInput
+          value={qualification.experienceDescription}
+          onChangeText={(text) =>
+            updateQualification({ experienceDescription: text })
+          }
+          placeholder="주요 근무 이력을 작성해주세요."
+          placeholderTextColor="#9CA3AF"
+          className="h-14 px-4 border border-gray-200 rounded-xl text-base text-gray-900"
+        />
+
+        {/* 담당했던 업무 */}
+        <TextInput
+          value={qualification.experienceDuties}
+          onChangeText={(text) =>
+            updateQualification({ experienceDuties: text })
+          }
+          placeholder="담당했던 업무를 작성해주세요."
+          placeholderTextColor="#9CA3AF"
+          className="h-14 px-4 border border-gray-200 rounded-xl text-base text-gray-900"
+        />
+      </View>
+    );
   };
 
   return (
@@ -70,27 +159,31 @@ export default function CaregiverQualificationScreen() {
               </View>
             </View>
 
-            {/* 자격증 선택 (멀티 셀렉트) */}
+            {/* 자격증 선택 (멀티 셀렉트 + 아코디언) */}
             <View className="px-6 mt-6">
               <Text className="text-lg font-bold text-gray-900 mb-4">
                 보유한 자격증을 등록해 주세요.
               </Text>
               <MultiSelect
                 options={CAREGIVER_CERTIFICATE_OPTIONS}
-                values={certificates}
-                onChange={setCertificates}
+                values={qualification.certificates}
+                onChange={(values) =>
+                  updateQualification({ certificates: values })
+                }
+                renderExpanded={renderCertificateExpanded}
               />
             </View>
 
-            {/* 경력 선택 (라디오 버튼) */}
+            {/* 경력 선택 (라디오 버튼 + 아코디언) */}
             <View className="px-6 mt-8">
               <Text className="text-lg font-bold text-gray-900 mb-4">
                 간병 경력이 있으신가요?
               </Text>
               <RadioButtonGroup
                 options={EXPERIENCE_OPTIONS}
-                value={experience}
-                onChange={setExperience}
+                value={qualification.experience}
+                onChange={(value) => updateQualification({ experience: value })}
+                renderExpanded={renderExperienceExpanded}
               />
             </View>
           </ScrollView>

@@ -1,7 +1,6 @@
-import type { CaregiverRegistrationForm } from "@/entities/caregiver";
-import { Header } from "@/shared/ui";
+import { useCaregiverRegistrationStore } from "@/features/caregiver";
+import { Button, GENDER_OPTIONS, Header, RadioButtonGroup } from "@/shared/ui";
 import { useRouter } from "expo-router";
-import { useState } from "react";
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -15,21 +14,10 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-type Gender = "male" | "female" | null;
-
 export default function CaregiverRegisterScreen() {
   const router = useRouter();
-
-  const [form, setForm] = useState<CaregiverRegistrationForm>({
-    name: "",
-    birthDate: "",
-    gender: null,
-    phone: "",
-    address: "",
-    addressDetail: "",
-    idCardImage: undefined,
-    criminalRecord: undefined,
-  });
+  const { basicInfo, updateBasicInfo, isStepValid } =
+    useCaregiverRegistrationStore();
 
   // 전화번호 포맷
   const formatPhoneNumber = (value: string) => {
@@ -52,29 +40,21 @@ export default function CaregiverRegisterScreen() {
   // 신분증 사진 업로드
   const handleIdCardUpload = async () => {
     // TODO: 이미지 피커로 신분증 사진 선택
-    console.log("신분증 사진 업로드");
+    updateBasicInfo({ idCardImage: "uploaded" });
   };
 
   // 범죄경력회보서 업로드
   const handleCriminalRecordUpload = async () => {
     // TODO: 이미지/PDF 피커로 파일 선택
-    console.log("범죄경력회보서 업로드");
+    updateBasicInfo({ criminalRecord: "uploaded" });
   };
 
-  // 폼 유효성 검사
-  const isFormValid =
-    form.name.length > 0 &&
-    form.birthDate.length === 8 &&
-    form.gender !== null &&
-    form.phone.length === 13 &&
-    form.address.length > 0 &&
-    form.idCardImage !== undefined;
+  const isFormValid = isStepValid(1);
 
   // 다음 단계로
   const handleNext = () => {
     if (!isFormValid) return;
-    // TODO: 다음 화면으로 이동 또는 API 호출
-    console.log("Form submitted:", form);
+    router.push("/(auth)/caregiver/qualification");
   };
 
   return (
@@ -109,8 +89,8 @@ export default function CaregiverRegisterScreen() {
             <View className="px-6 mb-4">
               <Text className="text-sm text-gray-600 mb-2">이름</Text>
               <TextInput
-                value={form.name}
-                onChangeText={(text) => setForm({ ...form, name: text })}
+                value={basicInfo.name}
+                onChangeText={(text) => updateBasicInfo({ name: text })}
                 placeholder="홍길동"
                 placeholderTextColor="#9CA3AF"
                 className="h-14 px-4 border border-gray-200 rounded-xl text-base text-gray-900"
@@ -121,10 +101,9 @@ export default function CaregiverRegisterScreen() {
             <View className="px-6 mb-4">
               <Text className="text-sm text-gray-600 mb-2">생년월일</Text>
               <TextInput
-                value={form.birthDate}
+                value={basicInfo.birthDate}
                 onChangeText={(text) =>
-                  setForm({
-                    ...form,
+                  updateBasicInfo({
                     birthDate: text.replace(/[^0-9]/g, "").slice(0, 8),
                   })
                 }
@@ -139,51 +118,22 @@ export default function CaregiverRegisterScreen() {
             {/* 성별 */}
             <View className="px-6 mb-4">
               <Text className="text-sm text-gray-600 mb-2">성별</Text>
-              <View className="flex-row gap-3">
-                <Pressable
-                  onPress={() => setForm({ ...form, gender: "male" })}
-                  className={`flex-1 h-14 rounded-xl items-center justify-center ${
-                    form.gender === "male"
-                      ? "bg-blue-500"
-                      : "bg-white border border-gray-200"
-                  }`}
-                >
-                  <Text
-                    className={`text-base font-medium ${
-                      form.gender === "male" ? "text-white" : "text-gray-400"
-                    }`}
-                  >
-                    남성
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => setForm({ ...form, gender: "female" })}
-                  className={`flex-1 h-14 rounded-xl items-center justify-center ${
-                    form.gender === "female"
-                      ? "bg-blue-500"
-                      : "bg-white border border-gray-200"
-                  }`}
-                >
-                  <Text
-                    className={`text-base font-medium ${
-                      form.gender === "female" ? "text-white" : "text-gray-400"
-                    }`}
-                  >
-                    여성
-                  </Text>
-                </Pressable>
-              </View>
+              <RadioButtonGroup
+                options={GENDER_OPTIONS}
+                value={basicInfo.gender}
+                onChange={(value) => updateBasicInfo({ gender: value })}
+              />
             </View>
 
             {/* 연락처 */}
             <View className="px-6 mb-4">
               <Text className="text-sm text-gray-600 mb-2">연락처</Text>
               <TextInput
-                value={form.phone}
+                value={basicInfo.phone}
                 onChangeText={(text) =>
-                  setForm({ ...form, phone: formatPhoneNumber(text) })
+                  updateBasicInfo({ phone: formatPhoneNumber(text) })
                 }
-                placeholder="174"
+                placeholder="010-1234-5678"
                 placeholderTextColor="#9CA3AF"
                 keyboardType="phone-pad"
                 maxLength={13}
@@ -200,16 +150,16 @@ export default function CaregiverRegisterScreen() {
               >
                 <Text
                   className={`text-base ${
-                    form.address ? "text-gray-900" : "text-gray-400"
+                    basicInfo.address ? "text-gray-900" : "text-gray-400"
                   }`}
                 >
-                  {form.address || "주소를 검색해 주세요."}
+                  {basicInfo.address || "주소를 검색해 주세요."}
                 </Text>
               </Pressable>
               <TextInput
-                value={form.addressDetail}
+                value={basicInfo.addressDetail}
                 onChangeText={(text) =>
-                  setForm({ ...form, addressDetail: text })
+                  updateBasicInfo({ addressDetail: text })
                 }
                 placeholder="상세주소"
                 placeholderTextColor="#9CA3AF"
@@ -224,7 +174,7 @@ export default function CaregiverRegisterScreen() {
                 onPress={handleIdCardUpload}
                 className="h-32 border border-gray-200 rounded-xl items-center justify-center bg-gray-50"
               >
-                {form.idCardImage ? (
+                {basicInfo.idCardImage ? (
                   <View className="items-center">
                     <Text className="text-2xl mb-1">✓</Text>
                     <Text className="text-sm text-gray-600">업로드 완료</Text>
@@ -251,7 +201,7 @@ export default function CaregiverRegisterScreen() {
                 onPress={handleCriminalRecordUpload}
                 className="h-24 border border-gray-200 rounded-xl items-center justify-center bg-gray-50"
               >
-                {form.criminalRecord ? (
+                {basicInfo.criminalRecord ? (
                   <View className="items-center">
                     <Text className="text-2xl mb-1">✓</Text>
                     <Text className="text-sm text-gray-600">업로드 완료</Text>
@@ -271,21 +221,9 @@ export default function CaregiverRegisterScreen() {
 
         {/* 다음 버튼 */}
         <View className="px-6 pb-8">
-          <Pressable
-            onPress={handleNext}
-            disabled={!isFormValid}
-            className={`h-14 rounded-xl items-center justify-center ${
-              isFormValid ? "bg-blue-500" : "bg-gray-200"
-            }`}
-          >
-            <Text
-              className={`text-base font-semibold ${
-                isFormValid ? "text-white" : "text-gray-400"
-              }`}
-            >
-              다음
-            </Text>
-          </Pressable>
+          <Button onPress={handleNext} disabled={!isFormValid}>
+            다음
+          </Button>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
