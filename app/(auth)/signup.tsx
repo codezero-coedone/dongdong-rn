@@ -42,7 +42,7 @@ export default function SignupScreen() {
     try {
       await signup(email, password, name);
       router.replace("/(tabs)");
-    } catch (error) {
+    } catch {
       Alert.alert("회원가입 실패", "다시 시도해주세요.");
     }
   };

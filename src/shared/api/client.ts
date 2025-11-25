@@ -11,10 +11,10 @@ let isRefreshing = false;
 /**
  * 토큰 갱신 대기 중인 요청 큐
  */
-let failedQueue: Array<{
+let failedQueue: {
   resolve: (token: string) => void;
   reject: (error: unknown) => void;
-}> = [];
+}[] = [];
 
 /**
  * 대기 중인 요청들 처리

@@ -171,8 +171,7 @@ export function PermissionScreen({
             이용에 제한이 있을 수 있습니다.
           </Text>
           <Text className="text-xs text-gray-400 mt-2 leading-5">
-            '디바이스 설정 {">"} 애플리케이션 권한'에서 각 권한 별 변경이
-            가능합니다.
+            {`'디바이스 설정 > 애플리케이션 권한'에서 각 권한 별 변경이 가능합니다.`}
           </Text>
         </View>
       </ScrollView>

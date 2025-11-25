@@ -13,6 +13,7 @@ import "react-native-reanimated";
 
 import { useAuthStore } from "@/features/auth";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { QueryProvider } from "@/shared/lib/react-query";
 
 function useProtectedRoute() {
   const { isAuthenticated, isLoading } = useAuthStore();
@@ -31,7 +32,7 @@ function useProtectedRoute() {
       // 로그인 상태 + 인증 그룹 안 → 홈으로
       router.replace("/(tabs)");
     }
-  }, [isAuthenticated, isLoading, segments]);
+  }, [isAuthenticated, isLoading, segments, router]);
 }
 
 function LoadingScreen() {
@@ -49,7 +50,7 @@ export default function RootLayout() {
   // 앱 시작 시 인증 상태 확인
   useEffect(() => {
     checkAuth();
-  }, []);
+  }, [checkAuth]);
 
   // 인증 기반 라우팅
   useProtectedRoute();

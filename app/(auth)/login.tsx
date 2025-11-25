@@ -1,172 +1,172 @@
-import { useAuthStore } from "@/features/auth";
-import { Link, useRouter } from "expo-router";
 import { useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Dimensions, Pressable, Text, View } from "react-native";
+import Carousel from "react-native-reanimated-carousel";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-export default function LoginScreen() {
-  const router = useRouter();
-  const { login, isLoading } = useAuthStore();
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+// 카로셀 콘텐츠 타입
+interface CarouselItem {
+  id: string;
+  title: string;
+  description: string;
+  showImage: boolean;
+}
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert("오류", "이메일과 비밀번호를 입력해주세요.");
-      return;
-    }
+// 온보딩 데이터
+const ONBOARDING_DATA: CarouselItem[] = [
+  {
+    id: "1",
+    title: "온보딩 내용 1",
+    description: "내용 1에 들어갈\n설명이 들어갑니다.",
+    showImage: true,
+  },
+  {
+    id: "2",
+    title: "온보딩 내용 2",
+    description: "내용 2에 들어갈\n설명이 들어갑니다.",
+    showImage: true,
+  },
+  {
+    id: "3",
+    title: "온보딩 내용 3",
+    description: "내용 3에 들어갈\n설명이 들어갑니다.",
+    showImage: false,
+  },
+];
 
-    try {
-      await login(email, password);
-      router.replace("/(tabs)");
-    } catch (error) {
-      Alert.alert("로그인 실패", "이메일 또는 비밀번호를 확인해주세요.");
-    }
-  };
-
+// 카로셀 아이템 컴포넌트
+function CarouselItemView({ item }: { item: CarouselItem }) {
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <View style={styles.content}>
-        <Text style={styles.title}>로그인</Text>
-        <Text style={styles.subtitle}>계정에 로그인하세요</Text>
+    <View className="flex-1 items-center pt-8 px-6">
+      {/* 제목 */}
+      <Text className="text-2xl font-bold text-gray-900 mb-4">
+        {item.title}
+      </Text>
 
-        <View style={styles.form}>
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>이메일</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="이메일을 입력하세요"
-              placeholderTextColor="#999"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-          </View>
+      {/* 설명 */}
+      <Text className="text-base text-gray-500 text-center leading-6 mb-8">
+        {item.description}
+      </Text>
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>비밀번호</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="비밀번호를 입력하세요"
-              placeholderTextColor="#999"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-          </View>
-
-          <TouchableOpacity
-            style={[styles.button, isLoading && styles.buttonDisabled]}
-            onPress={handleLogin}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>로그인</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>계정이 없으신가요?</Text>
-          <Link href="/(auth)/signup" asChild>
-            <TouchableOpacity>
-              <Text style={styles.linkText}>회원가입</Text>
-            </TouchableOpacity>
-          </Link>
-        </View>
-      </View>
-    </KeyboardAvoidingView>
+      {/* 이미지 */}
+      <View
+        className="w-40 h-40 rounded-full bg-blue-500 items-center justify-center"
+        style={{ opacity: item.showImage ? 1 : 0 }}
+      />
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  content: {
-    flex: 1,
-    justifyContent: "center",
-    paddingHorizontal: 24,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#111",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#666",
-    marginBottom: 32,
-  },
-  form: {
-    gap: 16,
-  },
-  inputContainer: {
-    gap: 8,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#333",
-  },
-  input: {
-    height: 52,
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    backgroundColor: "#FAFAFA",
-  },
-  button: {
-    height: 52,
-    backgroundColor: "#007AFF",
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 8,
-  },
-  buttonDisabled: {
-    backgroundColor: "#A0CFFF",
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  footer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 24,
-    gap: 8,
-  },
-  footerText: {
-    fontSize: 14,
-    color: "#666",
-  },
-  linkText: {
-    fontSize: 14,
-    color: "#007AFF",
-    fontWeight: "600",
-  },
-});
+// 페이지 인디케이터
+function PageIndicator({
+  total,
+  currentIndex,
+}: {
+  total: number;
+  currentIndex: number;
+}) {
+  return (
+    <View className="flex-row items-center justify-center gap-2 py-4">
+      {Array.from({ length: total }).map((_, index) => (
+        <View
+          key={index}
+          className={`w-2 h-2 rounded-full ${
+            index === currentIndex ? "bg-blue-500" : "bg-gray-300"
+          }`}
+        />
+      ))}
+    </View>
+  );
+}
+
+// 소셜 로그인 버튼
+function SocialLoginButton({
+  provider,
+  onPress,
+}: {
+  provider: "kakao" | "apple" | "google";
+  onPress: () => void;
+}) {
+  const config = {
+    kakao: {
+      icon: "Ⓚ",
+      text: "카카오 로그인",
+      className: "bg-white border-gray-300",
+      textClassName: "text-gray-700",
+    },
+    apple: {
+      icon: "",
+      text: "애플 로그인",
+      className: "bg-white border-gray-300",
+      textClassName: "text-black",
+    },
+    google: {
+      icon: "G",
+      text: "구글 로그인",
+      className: "bg-white border-gray-300",
+      textClassName: "text-gray-700",
+    },
+  };
+
+  const { icon, text, className, textClassName } = config[provider];
+
+  return (
+    <Pressable
+      onPress={onPress}
+      className={`flex-row items-center justify-center h-14 rounded-xl border mx-6 ${className}`}
+    >
+      <Text className={`text-lg mr-2 ${textClassName}`}>{icon}</Text>
+      <Text className={`text-base font-medium ${textClassName}`}>{text}</Text>
+    </Pressable>
+  );
+}
+
+export default function LoginScreen() {
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  // 소셜 로그인 핸들러
+  const handleKakaoLogin = () => {
+    console.log("카카오 로그인");
+    // TODO: 카카오 로그인 구현
+  };
+
+  const handleAppleLogin = () => {
+    console.log("애플 로그인");
+    // TODO: 애플 로그인 구현
+  };
+
+  return (
+    <SafeAreaView style={{ flex: 1 }} className="bg-white">
+      {/* 헤더 */}
+      <View className="items-center py-4">
+        <Text className="text-base font-medium text-gray-900">로그인</Text>
+      </View>
+
+      {/* 카로셀 영역 */}
+      <View style={{ flex: 1 }} className="bg-red-500">
+        <Carousel
+          width={SCREEN_WIDTH}
+          data={ONBOARDING_DATA}
+          onSnapToItem={(index: number) => setCurrentIndex(index)}
+          renderItem={({ item }: { item: CarouselItem }) => (
+            <CarouselItemView item={item} />
+          )}
+          loop={false}
+        />
+      </View>
+
+      {/* 페이지 인디케이터 */}
+      <PageIndicator
+        total={ONBOARDING_DATA.length}
+        currentIndex={currentIndex}
+      />
+
+      {/* 소셜 로그인 버튼들 */}
+      <View className="gap-3 pb-8">
+        <SocialLoginButton provider="kakao" onPress={handleKakaoLogin} />
+        <SocialLoginButton provider="apple" onPress={handleAppleLogin} />
+      </View>
+    </SafeAreaView>
+  );
+}
