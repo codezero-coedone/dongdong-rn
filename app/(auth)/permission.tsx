@@ -23,7 +23,7 @@ export default function PermissionPage() {
 
   const handleConfirm = () => {
     // 권한 요청 완료 후 다음 화면으로 이동
-    router.replace("/(tabs)");
+    router.replace("/(auth)/login");
   };
 
   return (

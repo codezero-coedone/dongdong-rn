@@ -26,8 +26,8 @@ function useProtectedRoute() {
     const inAuthGroup = segments[0] === "(auth)";
 
     if (!isAuthenticated && !inAuthGroup) {
-      // 비로그인 상태 + 인증 그룹 밖 → 로그인 페이지로
-      router.replace("/(auth)/login");
+      // 비로그인 상태 + 인증 그룹 밖 → 권한 페이지로
+      router.replace("/(auth)/permission");
     } else if (isAuthenticated && inAuthGroup) {
       // 로그인 상태 + 인증 그룹 안 → 홈으로
       router.replace("/(tabs)");

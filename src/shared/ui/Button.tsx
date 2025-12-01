@@ -38,7 +38,7 @@ export function Button({
 
   // variant별 스타일
   const variantStyles = {
-    primary: isDisabled ? "bg-gray-200" : "bg-blue-500",
+    primary: isDisabled ? "bg-gray-200" : "bg-primary",
     secondary: isDisabled ? "bg-gray-100" : "bg-gray-100",
     outline: isDisabled
       ? "bg-white border border-gray-200"
@@ -57,12 +57,12 @@ export function Button({
   const shadowStyle =
     shadow && variant === "primary" && !isDisabled
       ? {
-          shadowColor: "#3B82F6",
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.3,
-          shadowRadius: 8,
-          elevation: 8,
-        }
+        shadowColor: "#3B82F6",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 8,
+      }
       : {};
 
   return (

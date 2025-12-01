@@ -1,111 +1,59 @@
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Dimensions, Pressable, Text, View } from "react-native";
-import Carousel from "react-native-reanimated-carousel";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-// 카로셀 콘텐츠 타입
-interface CarouselItem {
+// 온보딩 데이터 타입
+interface OnboardingItem {
   id: string;
   title: string;
   description: string;
-  showImage: boolean;
 }
 
 // 온보딩 데이터
-const ONBOARDING_DATA: CarouselItem[] = [
+const ONBOARDING_DATA: OnboardingItem[] = [
   {
     id: "1",
-    title: "온보딩 내용 1",
-    description: "내용 1에 들어갈\n설명이 들어갑니다.",
-    showImage: true,
+    title: "안심되는 돌봄 시작",
+    description:
+      "간병 매칭부터 관리까지 한 곳에서 해결\n보호자·환자 모두에게 편리한 통합 돌봄 서비스 제공",
   },
   {
     id: "2",
-    title: "온보딩 내용 2",
-    description: "내용 2에 들어갈\n설명이 들어갑니다.",
-    showImage: true,
+    title: "실시간 확인으로 안심",
+    description:
+      "간병 매칭부터 관리까지 한 곳에서 해결\n보호자·환자 모두에게 편리한 통합 돌봄 서비스 제공",
   },
   {
     id: "3",
-    title: "온보딩 내용 3",
-    description: "내용 3에 들어갈\n설명이 들어갑니다.",
-    showImage: false,
+    title: "맞춤 돌봄 서비스 이용",
+    description:
+      "간병 매칭부터 관리까지 한 곳에서 해결\n보호자·환자 모두에게 편리한 통합 돌봄 서비스 제공",
   },
 ];
-
-// 카로셀 아이템 컴포넌트
-function CarouselItemView({ item }: { item: CarouselItem }) {
-  return (
-    <View className="flex-1 items-center pt-8 px-6">
-      {/* 제목 */}
-      <Text className="text-2xl font-bold text-gray-900 mb-4">
-        {item.title}
-      </Text>
-
-      {/* 설명 */}
-      <Text className="text-base text-gray-500 text-center leading-6 mb-8">
-        {item.description}
-      </Text>
-
-      {/* 이미지 */}
-      <View
-        className="w-40 h-40 rounded-full bg-blue-500 items-center justify-center"
-        style={{ opacity: item.showImage ? 1 : 0 }}
-      />
-    </View>
-  );
-}
-
-// 페이지 인디케이터
-function PageIndicator({
-  total,
-  currentIndex,
-}: {
-  total: number;
-  currentIndex: number;
-}) {
-  return (
-    <View className="flex-row items-center justify-center gap-2 py-4">
-      {Array.from({ length: total }).map((_, index) => (
-        <View
-          key={index}
-          className={`w-2 h-2 rounded-full ${
-            index === currentIndex ? "bg-blue-500" : "bg-gray-300"
-          }`}
-        />
-      ))}
-    </View>
-  );
-}
 
 // 소셜 로그인 버튼
 function SocialLoginButton({
   provider,
   onPress,
 }: {
-  provider: "kakao" | "apple" | "google";
+  provider: "kakao" | "apple";
   onPress: () => void;
 }) {
   const config = {
     kakao: {
-      icon: "Ⓚ",
-      text: "카카오 로그인",
-      className: "bg-white border-gray-300",
-      textClassName: "text-gray-700",
+      icon: "💬", // TODO: 카카오 아이콘 교체 필요
+      text: "카카오 시작하기",
+      className: "bg-[#FEE500]",
+      textClassName: "text-[#191919]",
     },
     apple: {
-      icon: "",
-      text: "애플 로그인",
-      className: "bg-white border-gray-300",
+      icon: "", // TODO: 애플 아이콘 교체 필요
+      text: "애플 시작하기",
+      className: "bg-gray-100",
       textClassName: "text-black",
-    },
-    google: {
-      icon: "G",
-      text: "구글 로그인",
-      className: "bg-white border-gray-300",
-      textClassName: "text-gray-700",
     },
   };
 
@@ -114,58 +62,78 @@ function SocialLoginButton({
   return (
     <Pressable
       onPress={onPress}
-      className={`flex-row items-center justify-center h-14 rounded-xl border mx-6 ${className}`}
+      className={`flex-row items-center justify-center h-14 rounded-xl mb-3 ${className}`}
     >
       <Text className={`text-lg mr-2 ${textClassName}`}>{icon}</Text>
-      <Text className={`text-base font-medium ${textClassName}`}>{text}</Text>
+      <Text className={`text-base font-semibold ${textClassName}`}>{text}</Text>
     </Pressable>
   );
 }
 
 export default function LoginScreen() {
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const router = useRouter();
+  const [step, setStep] = useState(0);
 
-  // 소셜 로그인 핸들러
-  const handleKakaoLogin = () => {
-    console.log("카카오 로그인");
-    // TODO: 카카오 로그인 구현
+  const currentItem = ONBOARDING_DATA[step];
+  const isLastStep = step === ONBOARDING_DATA.length - 1;
+
+  const handleNext = () => {
+    if (step < ONBOARDING_DATA.length - 1) {
+      setStep(step + 1);
+    }
   };
 
-  const handleAppleLogin = () => {
-    console.log("애플 로그인");
-    // TODO: 애플 로그인 구현
+  const handleSocialLogin = (provider: "kakao" | "apple") => {
+    console.log(`${provider} 로그인 시도`);
+    // 회원가입 화면으로 이동
+    router.push("/(auth)/signup");
   };
 
   return (
     <SafeAreaView style={{ flex: 1 }} className="bg-white">
       {/* 헤더 */}
-      <View className="items-center py-4">
+      <View className="items-center py-4 border-b border-gray-100">
         <Text className="text-base font-medium text-gray-900">로그인</Text>
       </View>
 
-      {/* 카로셀 영역 */}
-      <View style={{ flex: 1 }} className="bg-red-500">
-        <Carousel
-          width={SCREEN_WIDTH}
-          data={ONBOARDING_DATA}
-          onSnapToItem={(index: number) => setCurrentIndex(index)}
-          renderItem={({ item }: { item: CarouselItem }) => (
-            <CarouselItemView item={item} />
-          )}
-          loop={false}
-        />
+      <View className="flex-1 px-6 pt-12">
+        {/* 텍스트 영역 */}
+        <View className="items-center mb-12">
+          <Text className="text-2xl font-bold text-gray-900 mb-6 text-center">
+            {currentItem.title}
+          </Text>
+          <Text className="text-base text-gray-500 text-center leading-6">
+            {currentItem.description}
+          </Text>
+        </View>
+
+        {/* 이미지 영역 (Placeholder) */}
+        <View className="flex-1 items-center">
+          <View className="w-full aspect-square bg-gray-200 rounded-lg" />
+        </View>
       </View>
 
-      {/* 페이지 인디케이터 */}
-      <PageIndicator
-        total={ONBOARDING_DATA.length}
-        currentIndex={currentIndex}
-      />
-
-      {/* 소셜 로그인 버튼들 */}
-      <View className="gap-3 pb-8">
-        <SocialLoginButton provider="kakao" onPress={handleKakaoLogin} />
-        <SocialLoginButton provider="apple" onPress={handleAppleLogin} />
+      {/* 하단 버튼 영역 */}
+      <View className="px-6 pb-8 pt-4">
+        {isLastStep ? (
+          <View>
+            <SocialLoginButton
+              provider="kakao"
+              onPress={() => handleSocialLogin("kakao")}
+            />
+            <SocialLoginButton
+              provider="apple"
+              onPress={() => handleSocialLogin("apple")}
+            />
+          </View>
+        ) : (
+          <Pressable
+            onPress={handleNext}
+            className="h-14 bg-blue-500 rounded-xl items-center justify-center"
+          >
+            <Text className="text-white text-lg font-semibold">다음</Text>
+          </Pressable>
+        )}
       </View>
     </SafeAreaView>
   );
