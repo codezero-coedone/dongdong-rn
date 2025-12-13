@@ -29,8 +29,13 @@ export default function RoleSelectionScreen() {
 
     const handleConfirm = () => {
         if (!selectedRole) return;
-        // TODO: Save selected role to store/backend
-        router.replace("/(tabs)");
+
+        if (selectedRole === "guardian") {
+            router.push("/(auth)/patient-info");
+        } else {
+            // 환자 본인인 경우 바로 홈으로 (또는 추후 환자 전용 화면)
+            router.replace("/(tabs)");
+        }
     };
 
     const handleSkip = () => {
@@ -59,8 +64,8 @@ export default function RoleSelectionScreen() {
                     <Pressable
                         onPress={() => handleRoleSelect("patient")}
                         className={`p-6 rounded-2xl border-2 ${selectedRole === "patient"
-                                ? "border-blue-500 bg-blue-50"
-                                : "border-gray-200 bg-white"
+                            ? "border-blue-500 bg-blue-50"
+                            : "border-gray-200 bg-white"
                             }`}
                     >
                         <View className="flex-row justify-between items-start mb-2">
@@ -83,15 +88,15 @@ export default function RoleSelectionScreen() {
                     <Pressable
                         onPress={() => handleRoleSelect("guardian")}
                         className={`p-6 rounded-2xl border-2 ${selectedRole === "guardian"
-                                ? "border-blue-500 bg-blue-50"
-                                : "border-gray-200 bg-white"
+                            ? "border-blue-500 bg-blue-50"
+                            : "border-gray-200 bg-white"
                             }`}
                     >
                         <View className="flex-row justify-between items-start mb-2">
                             <Text
                                 className={`text-lg font-bold ${selectedRole === "guardian"
-                                        ? "text-blue-600"
-                                        : "text-blue-500"
+                                    ? "text-blue-600"
+                                    : "text-blue-500"
                                     }`}
                             >
                                 보호자입니다.

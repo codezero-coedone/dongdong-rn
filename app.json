@@ -1,17 +1,19 @@
 {
   "expo": {
-    "name": "dongdong-rn",
-    "slug": "dongdong-rn",
+    "name": "동동",
+    "slug": "dongdong-guardian",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "dongdongrn",
+    "scheme": "dongdong-guardian",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "kr.slicemind.dongdong.guardian"
     },
     "android": {
+      "package": "kr.slicemind.dongdong.guardian",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
