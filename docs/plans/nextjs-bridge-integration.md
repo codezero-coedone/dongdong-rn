@@ -471,38 +471,50 @@ export default function MyPage() {
 
 ## 타입 공유 전략
 
-### 옵션 1: 단일 소스 복사 (권장 - 빠른 시작)
+> **선택된 전략**: 단일 소스 복사 (Single Source Copy)
 
-RN 프로젝트의 타입을 Next.js로 복사:
+RN 프로젝트의 `src/shared/types/bridge.ts`를 **정본(source of truth)**으로 사용하고,
+Next.js 프로젝트로 복사합니다.
+
+### 복사 스크립트
 
 ```bash
-# 스크립트로 자동화
-cp dongdong-rn/src/shared/types/bridge.ts dongdong-web/src/lib/bridge/types.ts
+# dongdong-rn 프로젝트 루트에서 실행
+# Next.js 프로젝트 경로에 맞게 수정
+
+# 단일 파일 복사
+cp src/shared/types/bridge.ts ../dongdong-web/src/lib/bridge/types.ts
+
+# 또는 package.json에 스크립트 추가
 ```
 
-### 옵션 2: 공유 패키지 (권장 - 장기)
-
-```
-dongdong/
-├── packages/
-│   └── shared-types/
-│       ├── package.json
-│       └── src/
-│           └── bridge.ts
-├── apps/
-│   ├── rn/          # Guardian App
-│   └── web/         # Next.js App
-└── package.json     # Monorepo root
-```
+### package.json 스크립트 (권장)
 
 ```json
-// packages/shared-types/package.json
+// dongdong-rn/package.json
 {
-  "name": "@dongdong/shared-types",
-  "version": "1.0.0",
-  "main": "src/index.ts"
+  "scripts": {
+    "sync:types": "cp src/shared/types/bridge.ts ../dongdong-web/src/lib/bridge/types.ts"
+  }
 }
 ```
+
+```bash
+# 사용법
+yarn sync:types
+```
+
+### 주의사항
+
+> [!IMPORTANT]
+> 브릿지 타입을 수정할 때는 **반드시 RN 프로젝트에서 먼저 수정**한 후,
+> `yarn sync:types`로 Next.js에 동기화하세요.
+
+> [!TIP]
+> CI/CD에서 타입 일치 여부를 검증하는 스크립트를 추가하면 안전합니다:
+> ```bash
+> diff src/shared/types/bridge.ts ../dongdong-web/src/lib/bridge/types.ts
+> ```
 
 ---
 
