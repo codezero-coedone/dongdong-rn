@@ -17,6 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { z } from "zod";
 
 import { Button } from "@/shared/ui/Button";
+import { useGuardianCareRequestStore } from "@/features/guardian";
 
 // 유효성 검사 스키마
 const patientInfoSchema = z.object({
@@ -37,7 +38,9 @@ const patientInfoSchema = z.object({
                 date.getDate() === day
             );
         }, "올바른 날짜가 아닙니다"),
-    gender: z.enum(["male", "female"]).optional(),
+    gender: z.enum(["male", "female"], {
+        required_error: "성별을 선택해주세요",
+    }),
     height: z.string().optional(),
     weight: z.string().optional(),
 });
@@ -46,6 +49,7 @@ type PatientInfoFormData = z.infer<typeof patientInfoSchema>;
 
 export default function PatientInfoScreen() {
     const router = useRouter();
+    const setPatientBasic = useGuardianCareRequestStore((s) => s.setPatientBasic);
 
     const {
         control,
@@ -65,8 +69,14 @@ export default function PatientInfoScreen() {
     });
 
     const onSubmit = (data: PatientInfoFormData) => {
-        console.log("Patient Info Submitted:", data);
-        // TODO: Save patient info to store/backend
+        setPatientBasic({
+            relationship: data.relationship || undefined,
+            name: data.name,
+            birthDateYmd8: data.birthDate,
+            gender: data.gender,
+            height: data.height || undefined,
+            weight: data.weight || undefined,
+        });
         router.push("/(auth)/patient-condition");
     };
 
