@@ -1,6 +1,8 @@
 import { secureStorage } from "@/shared/lib/storage";
+import { apiClient } from "@/shared/api/client";
 import { create } from "zustand";
 import type { AuthStore, SocialProvider, User } from "./types";
+import KakaoLogin from "@react-native-seoul/kakao-login";
 
 const AUTO_LOGIN_KEY = "auto_login_enabled";
 
@@ -94,30 +96,45 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   socialLogin: async (provider: SocialProvider) => {
     set({ isLoading: true });
     try {
-      // TODO: 실제 소셜 로그인 SDK 호출
-      // if (provider === 'kakao') {
-      //   const kakaoToken = await kakaoLogin();
-      //   const response = await authApi.socialLogin({ provider, token: kakaoToken.accessToken });
-      // }
+      if (provider !== "kakao") {
+        throw new Error("현재는 카카오 로그인만 지원합니다.");
+      }
 
-      // 임시 Mock 데이터
-      const mockUser: User = {
-        id: "social_" + Date.now(),
-        email: `${provider}_user@example.com`,
-        name: `${provider} 사용자`,
-        provider,
-      };
-      const mockToken = "mock_social_token_" + Date.now();
-      const mockRefreshToken = "mock_social_refresh_" + Date.now();
+      const kakaoToken: any = await KakaoLogin.login();
+      const accessToken: string | undefined = kakaoToken?.accessToken;
+      if (!accessToken) {
+        throw new Error("카카오 accessToken을 가져올 수 없습니다.");
+      }
 
-      await secureStorage.setToken(mockToken);
-      await secureStorage.set("refresh_token", mockRefreshToken);
-      await secureStorage.setUser(mockUser);
+      const res = await apiClient.post("/auth/social", {
+        provider: "KAKAO",
+        accessToken,
+      });
+
+      const data = (res as any)?.data?.data;
+      const access_token: string | undefined = data?.access_token;
+      const refresh_token: string | undefined = data?.refresh_token;
+      const u = data?.user;
+
+      if (!access_token || !refresh_token || !u) {
+        throw new Error("서버 응답 형식이 올바르지 않습니다.");
+      }
+
+      const user: User = {
+        id: String(u.id),
+        email: u.email ?? null,
+        name: u.name ?? "",
+        provider: "kakao",
+      } as any;
+
+      await secureStorage.setToken(access_token);
+      await secureStorage.set("refresh_token", refresh_token);
+      await secureStorage.setUser(user);
 
       set({
-        user: mockUser,
-        token: mockToken,
-        refreshToken: mockRefreshToken,
+        user,
+        token: access_token,
+        refreshToken: refresh_token,
         isAuthenticated: true,
         isLoading: false,
       });
@@ -153,21 +170,17 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       const refreshToken = await secureStorage.get("refresh_token");
       if (!refreshToken) return false;
 
-      // TODO: 실제 토큰 갱신 API 호출
-      // const response = await authApi.refreshToken({ refreshToken });
-
-      // 임시 Mock: 토큰 갱신 성공
-      const newToken = "refreshed_token_" + Date.now();
-      const newRefreshToken = "refreshed_refresh_" + Date.now();
-
-      await secureStorage.setToken(newToken);
-      await secureStorage.set("refresh_token", newRefreshToken);
-
-      set({
-        token: newToken,
-        refreshToken: newRefreshToken,
+      const res = await apiClient.post("/auth/refresh", {
+        refresh_token: refreshToken,
       });
+      const data = (res as any)?.data?.data;
+      const access_token: string | undefined = data?.access_token;
+      const refresh_token: string | undefined = data?.refresh_token;
+      if (!access_token || !refresh_token) return false;
 
+      await secureStorage.setToken(access_token);
+      await secureStorage.set("refresh_token", refresh_token);
+      set({ token: access_token, refreshToken: refresh_token });
       return true;
     } catch {
       // 토큰 갱신 실패 시 로그아웃

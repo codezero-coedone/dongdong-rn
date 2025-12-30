@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Dimensions, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useAuthStore } from "@/features/auth";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -73,6 +74,7 @@ function SocialLoginButton({
 export default function LoginScreen() {
   const router = useRouter();
   const [step, setStep] = useState(0);
+  const socialLogin = useAuthStore((s) => s.socialLogin);
 
   const currentItem = ONBOARDING_DATA[step];
   const isLastStep = step === ONBOARDING_DATA.length - 1;
@@ -83,10 +85,16 @@ export default function LoginScreen() {
     }
   };
 
-  const handleSocialLogin = (provider: "kakao" | "apple") => {
-    console.log(`${provider} 로그인 시도`);
-    // 회원가입 화면으로 이동
-    router.push("/(auth)/signup");
+  const handleSocialLogin = async (provider: "kakao" | "apple") => {
+    try {
+      await socialLogin(provider);
+      // 로그인 후 역할 선택(환자/보호자)로 이동
+      router.replace("/(auth)/role-selection");
+    } catch (e: any) {
+      console.log("social login error:", e);
+      // 최소 에러 처리 (UI는 추후 디자인 적용)
+      router.push("/(auth)/signup");
+    }
   };
 
   return (
