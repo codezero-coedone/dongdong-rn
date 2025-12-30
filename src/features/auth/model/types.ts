@@ -1,4 +1,4 @@
-export type SocialProvider = "kakao" | "apple";
+export type SocialProvider = "kakao";
 
 export interface User {
   id: string;

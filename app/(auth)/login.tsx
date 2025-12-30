@@ -40,7 +40,7 @@ function SocialLoginButton({
   provider,
   onPress,
 }: {
-  provider: "kakao" | "apple";
+  provider: "kakao";
   onPress: () => void;
 }) {
   const config = {
@@ -49,12 +49,6 @@ function SocialLoginButton({
       text: "카카오 시작하기",
       className: "bg-[#FEE500]",
       textClassName: "text-[#191919]",
-    },
-    apple: {
-      icon: "", // TODO: 애플 아이콘 교체 필요
-      text: "애플 시작하기",
-      className: "bg-gray-100",
-      textClassName: "text-black",
     },
   };
 
@@ -85,9 +79,9 @@ export default function LoginScreen() {
     }
   };
 
-  const handleSocialLogin = async (provider: "kakao" | "apple") => {
+  const handleSocialLogin = async () => {
     try {
-      await socialLogin(provider);
+      await socialLogin("kakao");
       // 로그인 후 역할 선택(환자/보호자)로 이동
       router.replace("/(auth)/role-selection");
     } catch (e: any) {
@@ -127,11 +121,7 @@ export default function LoginScreen() {
           <View>
             <SocialLoginButton
               provider="kakao"
-              onPress={() => handleSocialLogin("kakao")}
-            />
-            <SocialLoginButton
-              provider="apple"
-              onPress={() => handleSocialLogin("apple")}
+              onPress={handleSocialLogin}
             />
           </View>
         ) : (

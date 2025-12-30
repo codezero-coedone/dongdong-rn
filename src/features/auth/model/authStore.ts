@@ -93,13 +93,9 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     }
   },
 
-  socialLogin: async (provider: SocialProvider) => {
+  socialLogin: async (_provider: SocialProvider) => {
     set({ isLoading: true });
     try {
-      if (provider !== "kakao") {
-        throw new Error("현재는 카카오 로그인만 지원합니다.");
-      }
-
       const kakaoToken: any = await KakaoLogin.login();
       const accessToken: string | undefined = kakaoToken?.accessToken;
       if (!accessToken) {
