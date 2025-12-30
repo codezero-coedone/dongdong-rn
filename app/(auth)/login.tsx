@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Dimensions, Pressable, Text, View } from "react-native";
+import { Alert, Dimensions, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuthStore } from "@/features/auth";
 
@@ -86,8 +86,7 @@ export default function LoginScreen() {
       router.replace("/(auth)/role-selection");
     } catch (e: any) {
       console.log("social login error:", e);
-      // 최소 에러 처리 (UI는 추후 디자인 적용)
-      router.push("/(auth)/signup");
+      Alert.alert("오류", "카카오 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.");
     }
   };
 
