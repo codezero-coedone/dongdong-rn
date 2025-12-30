@@ -12,12 +12,21 @@ module.exports = () => {
     process.env.EXPO_PUBLIC_KAKAO_APP_KEY || process.env.KAKAO_APP_KEY;
 
   const plugins = Array.isArray(base.plugins) ? [...base.plugins] : [];
+  const hasUpdatesPlugin = plugins.some((p) => {
+    if (typeof p === "string") return p === "expo-updates";
+    if (Array.isArray(p)) return p[0] === "expo-updates";
+    return false;
+  });
 
   const hasKakaoPlugin = plugins.some((p) => {
     if (typeof p === "string") return p === "@react-native-seoul/kakao-login";
     if (Array.isArray(p)) return p[0] === "@react-native-seoul/kakao-login";
     return false;
   });
+
+  if (!hasUpdatesPlugin) {
+    plugins.push("expo-updates");
+  }
 
   if (kakaoAppKey && !hasKakaoPlugin) {
     plugins.push([
@@ -29,6 +38,11 @@ module.exports = () => {
   return {
     ...base,
     plugins,
+    runtimeVersion: base.runtimeVersion ?? { policy: "appVersion" },
+    updates: {
+      ...(base.updates || {}),
+      fallbackToCacheTimeout: 0,
+    },
   };
 };
 
