@@ -124,6 +124,10 @@ export const secureStorage = {
   },
 
   async clearAll(): Promise<void> {
-    await Promise.all([this.removeToken(), this.removeUser()]);
+    await Promise.all([
+      this.removeToken(),
+      this.removeUser(),
+      this.remove("refresh_token"),
+    ]);
   },
 };

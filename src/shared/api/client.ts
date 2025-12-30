@@ -145,15 +145,26 @@ apiClient.interceptors.response.use(
  */
 async function refreshToken(): Promise<string | null> {
   try {
-    // TODO: 실제 refresh token API 호출
-    // const refreshToken = await secureStorage.getRefreshToken();
-    // const response = await axios.post(`${config.API_URL}/auth/refresh`, {
-    //   refreshToken,
-    // });
-    // return response.data.accessToken;
+    const refreshToken = await secureStorage.get("refresh_token");
+    if (!refreshToken) return null;
 
-    console.log("🔄 Token refresh attempted (mock)");
-    return null; // Mock: 실제로는 새 토큰 반환
+    // Backend contract: POST /auth/refresh { refresh_token } -> { status, message, data: { access_token, refresh_token } }
+    const response = await axios.post(`${config.API_URL}/auth/refresh`, {
+      refresh_token: refreshToken,
+    });
+
+    const data: any = (response as any)?.data?.data;
+    const access_token: string | undefined = data?.access_token;
+    const refresh_token: string | undefined = data?.refresh_token;
+
+    if (!access_token) return null;
+
+    await secureStorage.setToken(access_token);
+    if (refresh_token) {
+      await secureStorage.set("refresh_token", refresh_token);
+    }
+
+    return access_token;
   } catch (error) {
     console.error("Token refresh failed:", error);
     return null;
