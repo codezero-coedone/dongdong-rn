@@ -17,7 +17,9 @@ export const WEBVIEW_DEV_URL = 'http://localhost:3000';
 export const WEBVIEW_STAGING_URL = 'https://staging-guardian.dongdong.kr';
 
 /** 현재 환경에 맞는 WebView URL */
-export const WEBVIEW_URL = __DEV__ ? WEBVIEW_DEV_URL : WEBVIEW_PROD_URL;
+export const WEBVIEW_URL =
+    process.env.EXPO_PUBLIC_WEBVIEW_URL ||
+    (__DEV__ ? WEBVIEW_DEV_URL : WEBVIEW_PROD_URL);
 
 // ============================================
 // Security
