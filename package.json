@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "dongdong-rn",
   "main": "expo-router/entry",
   "version": "1.0.0",
@@ -54,7 +54,7 @@
     "react-native-web": "~0.21.0",
     "react-native-webview": "^13.16.0",
     "react-native-worklets": "0.5.1",
-    "tailwindcss-safe-area": "0.8.0",
+    "tailwindcss-safe-area": "1.2.0",
     "zustand": "^5.0.8"
   },
   "devDependencies": {
@@ -68,7 +68,7 @@
   },
   "private": true,
   "overrides": {
-    "tailwindcss-safe-area": "0.8.0",
     "lightningcss": "1.30.1"
   }
 }
+
