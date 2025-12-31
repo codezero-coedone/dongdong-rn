@@ -95,6 +95,26 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
   socialLogin: async (provider: SocialProvider) => {
     set({ isLoading: true });
+
+    const formatKakaoError = (e: unknown): Error => {
+      const raw = (e as any)?.message ? String((e as any).message) : String(e);
+      if (/keyhash/i.test(raw)) {
+        return new Error(
+          [
+            "Android keyhash가 Kakao Developers 콘솔에 등록되지 않았습니다.",
+            "",
+            "조치:",
+            "- Kakao Developers > 내 애플리케이션 > 플랫폼(Android)",
+            "- 패키지: kr.slicemind.dongdong.guardian",
+            "- 현재 설치 채널(Play 내부테스트/사이드로드)에 맞는 keyhash를 추가 등록",
+            "",
+            "등록 후 앱을 재설치(Play 내부테스트 링크)하고 다시 시도해 주세요.",
+          ].join("\n"),
+        );
+      }
+      return new Error(raw || "카카오 로그인에 실패했습니다.");
+    };
+
     try {
       if (provider !== "kakao") {
         throw new Error("현재는 카카오 로그인만 지원합니다.");
@@ -166,7 +186,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       });
     } catch (error) {
       set({ isLoading: false });
-      throw error;
+      throw formatKakaoError(error);
     }
   },
 
