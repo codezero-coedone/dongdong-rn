@@ -24,8 +24,19 @@ module.exports = () => {
     return false;
   });
 
+  const hasCleartextPlugin = plugins.some((p) => {
+    if (typeof p === "string") return p === "./plugins/withCleartextTraffic";
+    if (Array.isArray(p)) return p[0] === "./plugins/withCleartextTraffic";
+    return false;
+  });
+
   if (!hasUpdatesPlugin) {
     plugins.push("expo-updates");
+  }
+
+  // Allow HTTP API calls on Android 9+ (required for current DEV server: http://api.dongdong.io:3000)
+  if (!hasCleartextPlugin) {
+    plugins.push("./plugins/withCleartextTraffic");
   }
 
   if (kakaoAppKey && !hasKakaoPlugin) {
