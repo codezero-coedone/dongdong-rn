@@ -2,7 +2,7 @@ import { secureStorage } from "@/shared/lib/storage";
 import { apiClient } from "@/shared/api/client";
 import { create } from "zustand";
 import type { AuthStore, SocialProvider, User } from "./types";
-import KakaoLogin from "@react-native-seoul/kakao-login";
+import { login as kakaoNativeLogin } from "@react-native-seoul/kakao-login";
 
 const AUTO_LOGIN_KEY = "auto_login_enabled";
 
@@ -93,10 +93,40 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     }
   },
 
-  socialLogin: async (_provider: SocialProvider) => {
+  socialLogin: async (provider: SocialProvider) => {
     set({ isLoading: true });
     try {
-      const kakaoToken: any = await KakaoLogin.login();
+      if (provider !== "kakao") {
+        throw new Error("현재는 카카오 로그인만 지원합니다.");
+      }
+
+      if (typeof kakaoNativeLogin !== "function") {
+        throw new Error(
+          "카카오 로그인 모듈이 로딩되지 않았습니다. (Expo Go 불가 / 빌드 시 EXPO_PUBLIC_KAKAO_APP_KEY 설정 필요)",
+        );
+      }
+
+      const withTimeout = async <T,>(p: Promise<T>, ms: number): Promise<T> => {
+        let t: any;
+        try {
+          return await Promise.race([
+            p,
+            new Promise<T>((_, reject) => {
+              t = setTimeout(() => {
+                reject(
+                  new Error(
+                    "카카오 로그인 화면이 열리지 않습니다. (카카오톡/Chrome 설치 여부를 확인해 주세요)",
+                  ),
+                );
+              }, ms);
+            }),
+          ]);
+        } finally {
+          if (t) clearTimeout(t);
+        }
+      };
+
+      const kakaoToken: any = await withTimeout(kakaoNativeLogin(), 12000);
       const accessToken: string | undefined = kakaoToken?.accessToken;
       if (!accessToken) {
         throw new Error("카카오 accessToken을 가져올 수 없습니다.");

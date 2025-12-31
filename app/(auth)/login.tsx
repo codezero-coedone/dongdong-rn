@@ -1,10 +1,8 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Alert, Dimensions, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuthStore } from "@/features/auth";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // 온보딩 데이터 타입
 interface OnboardingItem {
@@ -69,6 +67,7 @@ export default function LoginScreen() {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const socialLogin = useAuthStore((s) => s.socialLogin);
+  const isLoading = useAuthStore((s) => s.isLoading);
 
   const currentItem = ONBOARDING_DATA[step];
   const isLastStep = step === ONBOARDING_DATA.length - 1;
@@ -86,7 +85,11 @@ export default function LoginScreen() {
       router.replace("/(auth)/role-selection");
     } catch (e: any) {
       console.log("social login error:", e);
-      Alert.alert("오류", "카카오 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      const msg =
+        e?.response?.data?.message ||
+        e?.message ||
+        "카카오 로그인에 실패했습니다. (Expo Go 불가 / 카카오 키 설정 확인)";
+      Alert.alert("오류", String(msg));
     }
   };
 
@@ -122,6 +125,12 @@ export default function LoginScreen() {
               provider="kakao"
               onPress={handleSocialLogin}
             />
+            {isLoading && (
+              <View className="mt-3 items-center">
+                <ActivityIndicator />
+                <Text className="mt-2 text-gray-500">카카오 로그인 진행 중…</Text>
+              </View>
+            )}
           </View>
         ) : (
           <Pressable

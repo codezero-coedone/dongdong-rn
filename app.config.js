@@ -29,9 +29,17 @@ module.exports = () => {
   }
 
   if (kakaoAppKey && !hasKakaoPlugin) {
+    // Force-inject Kakao AppKey meta-data to avoid "no-op" login on some devices/builds.
+    plugins.push(["./plugins/withKakaoAppKeyMetaData", { kakaoAppKey }]);
+
     plugins.push([
       "@react-native-seoul/kakao-login",
-      { kakaoAppKey, kotlinVersion: "1.9.0" },
+      // IMPORTANT: This MUST be a Kotlin version supported by Expo's expo-root-project KSP mapping.
+      // If omitted, this plugin can fall back to an old Kotlin (e.g. 1.5.x) and break the build:
+      // "Can't find KSP version for Kotlin version ..."
+      // If set to an older-but-mapped Kotlin (e.g. 2.0.x), we observed KSP internal compiler errors.
+      // Use a current mapped Kotlin version.
+      { kakaoAppKey, kotlinVersion: "2.2.10" },
     ]);
   }
 
