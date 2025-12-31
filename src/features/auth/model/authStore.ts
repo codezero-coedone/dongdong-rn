@@ -98,6 +98,19 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
     const formatKakaoError = (e: unknown): Error => {
       const raw = (e as any)?.message ? String((e as any).message) : String(e);
+      if (/network error/i.test(raw) || /timeout/i.test(raw)) {
+        return new Error(
+          [
+            "네트워크 오류로 서버에 연결할 수 없습니다.",
+            "",
+            "확인:",
+            "- EXPO_PUBLIC_API_URL = http://api.dongdong.io:3000/api/v1",
+            "- 안드로이드에서 HTTP(비TLS) 차단이 걸리면 Network Error가 날 수 있습니다.",
+            "  (이번 빌드부터 usesCleartextTraffic=true 적용 필요)",
+            "- 모바일 데이터/와이파이 환경에서 api.dongdong.io 접속 가능 여부",
+          ].join("\n"),
+        );
+      }
       if (/keyhash/i.test(raw)) {
         return new Error(
           [
