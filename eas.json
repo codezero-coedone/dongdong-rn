@@ -4,6 +4,9 @@
   },
   "build": {
     "production": {
+      "env": {
+        "CSS_TRANSFORMER_WASM": "1"
+      },
       "android": {
         "buildType": "app-bundle"
       }
