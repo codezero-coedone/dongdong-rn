@@ -10,10 +10,12 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "kr.slicemind.dongdong.guardian"
+      "bundleIdentifier": "kr.slicemind.dongdong.guardian",
+      "buildNumber": "2"
     },
     "android": {
       "package": "kr.slicemind.dongdong.guardian",
+      "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -46,6 +48,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ea1ad228-514c-419b-84df-19469066fef7"
+      }
     }
   }
 }
