@@ -11,11 +11,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "kr.slicemind.dongdong.guardian",
-      "buildNumber": "6"
+      "buildNumber": "7"
     },
     "android": {
       "package": "kr.slicemind.dongdong.guardian",
-      "versionCode": 6,
+      "versionCode": 7,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
