@@ -10,6 +10,11 @@ module.exports = () => {
   const base = appJson.expo || {};
   const kakaoAppKey =
     process.env.EXPO_PUBLIC_KAKAO_APP_KEY || process.env.KAKAO_APP_KEY;
+  if (!kakaoAppKey) {
+    throw new Error(
+      "[dongdong-rn] EXPO_PUBLIC_KAKAO_APP_KEY is required (Kakao login is mandatory for this app).",
+    );
+  }
 
   const plugins = Array.isArray(base.plugins) ? [...base.plugins] : [];
   const hasUpdatesPlugin = plugins.some((p) => {
@@ -39,7 +44,7 @@ module.exports = () => {
     plugins.push("./plugins/withCleartextTraffic");
   }
 
-  if (kakaoAppKey && !hasKakaoPlugin) {
+  if (!hasKakaoPlugin) {
     // Force-inject Kakao AppKey meta-data to avoid "no-op" login on some devices/builds.
     plugins.push(["./plugins/withKakaoAppKeyMetaData", { kakaoAppKey }]);
 
