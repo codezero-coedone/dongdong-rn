@@ -11,18 +11,17 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "kr.slicemind.dongdong.guardian",
-      "buildNumber": "5"
+      "buildNumber": "6"
     },
     "android": {
       "package": "kr.slicemind.dongdong.guardian",
-      "versionCode": 5,
+      "versionCode": 6,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "usesCleartextTraffic": true,
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
@@ -47,8 +46,8 @@
       "expo-secure-store"
     ],
     "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
+      "typedRoutes": false,
+      "reactCompiler": false
     },
     "extra": {
       "router": {},
