@@ -112,7 +112,12 @@ export const WEBVIEW_CONFIG = {
     mediaPlaybackRequiresUserAction: false,
 
     /** 캐시 모드 */
-    cacheEnabled: true,
+    // DEV/QA 결정성: 웹 캐시/서비스워커/스토리지로 인해 "화면이 그대로" 보이는 이슈가 자주 발생.
+    // 우선은 캐시를 꺼서(그리고 토큰은 pre-inject) 항상 최신 WebView를 보이게 고정한다.
+    cacheEnabled: false,
+
+    /** WebView 세션 분리 (캐시/쿠키 영향 최소화) */
+    incognito: true,
 
     /** 인라인 비디오 재생 허용 (iOS) */
     allowsInlineMediaPlayback: true,
