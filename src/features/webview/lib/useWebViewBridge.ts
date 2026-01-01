@@ -20,9 +20,13 @@ export function useWebViewBridge() {
      */
     const postMessage = useCallback(<T>(type: RNToWebMessageType, payload: T) => {
         const message = createRNToWebMessage(type, payload);
+        // NOTE:
+        // - We must post a JSON object (or a JSON string once) to the WebView page.
+        // - Double-stringifying causes the web side(JSON.parse) to produce a string, not an object.
+        const json = JSON.stringify(message);
         const script = `
       (function() {
-        window.postMessage(${JSON.stringify(JSON.stringify(message))}, '*');
+        window.postMessage(${JSON.stringify(json)}, '*');
       })();
       true;
     `;

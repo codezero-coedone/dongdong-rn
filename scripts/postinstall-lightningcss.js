@@ -10,6 +10,7 @@
  */
 const fs = require("fs");
 const path = require("path");
+const { execSync } = require("child_process");
 
 function exists(p) {
   try {
@@ -29,8 +30,6 @@ function copyIfMissing(src, dst) {
 
 function detectLinuxVariant() {
   try {
-    // lightningcss가 사용하는 detect-libc를 그대로 사용 (있으면)
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const dl = require("detect-libc");
     const family = typeof dl.familySync === "function" ? dl.familySync() : null;
     if (family && dl.MUSL && family === dl.MUSL) return "musl";
@@ -83,9 +82,28 @@ function main() {
     ok = copyIfMissing(c.src, c.dst) || ok;
   }
 
+  // EAS(Build)에서 optionalDependencies 설치가 누락되는 케이스가 있어,
+  // Linux 빌드 환경에서는 필요한 바이너리를 강제로 받아온 뒤 복사합니다.
+  // (Windows 로컬 개발에서는 실행되지 않음)
+  if (!ok && process.env.EAS_BUILD && process.platform === "linux") {
+    const pkg = `lightningcss-${variant}@1.30.1`;
+    try {
+      execSync(`npm i --no-save --ignore-scripts --no-audit --no-fund ${pkg}`, {
+        cwd: projectRoot,
+        stdio: "inherit",
+      });
+    } catch {
+      // ignore and fall through
+    }
+
+    // retry copy after install attempt
+    for (const c of candidates) {
+      ok = copyIfMissing(c.src, c.dst) || ok;
+    }
+  }
+
   // 로그는 최소(빌드 로그 오염 방지). 필요한 경우만 1줄.
   if (process.env.EAS_BUILD && ok) {
-    // eslint-disable-next-line no-console
     console.log(`[postinstall] lightningcss native binding prepared (${variant})`);
   }
 }

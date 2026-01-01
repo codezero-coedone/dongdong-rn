@@ -8,10 +8,14 @@
 // ============================================
 
 /** 프로덕션 WebView URL */
-export const WEBVIEW_PROD_URL = 'https://guardian.dongdong.kr';
+// NOTE(DEV/OPS):
+// 현재 운영/검수 단계에서는 WebView 컨텐츠가 dev-client(dongdong-client)에서 서빙됩니다.
+// guardian.dongdong.kr 이 준비되면 EXPO_PUBLIC_WEBVIEW_URL 또는 아래 기본값을 교체하세요.
+export const WEBVIEW_PROD_URL = 'http://dev-client.dongdong.io';
 
 /** 개발 WebView URL (로컬 Next.js 서버) */
-export const WEBVIEW_DEV_URL = 'http://localhost:3000';
+// 실제 디바이스/내부테스트에서는 localhost가 RN 단말 자체를 가리켜서 실패합니다.
+export const WEBVIEW_DEV_URL = 'http://dev-client.dongdong.io';
 
 /** 스테이징 WebView URL */
 export const WEBVIEW_STAGING_URL = 'https://staging-guardian.dongdong.kr';
@@ -27,7 +31,9 @@ export const WEBVIEW_URL =
 
 /** 허용된 도메인 목록 */
 export const ALLOWED_DOMAINS = [
+    'dongdong.io',
     'dongdong.kr',
+    'dev-client.dongdong.io',
     'guardian.dongdong.kr',
     'staging-guardian.dongdong.kr',
     'localhost',
@@ -41,11 +47,17 @@ export const ALLOWED_SCHEMES = ['https', 'http'] as const;
  */
 export function isAllowedUrl(url: string): boolean {
     try {
+        if (url === 'about:blank') return true;
         const urlObj = new URL(url);
 
         // 개발 환경에서는 localhost 허용
         if (__DEV__ && urlObj.hostname === 'localhost') {
             return true;
+        }
+
+        // 허용된 scheme 확인
+        if (!ALLOWED_SCHEMES.includes(urlObj.protocol.replace(':', '') as any)) {
+            return false;
         }
 
         // 허용된 도메인 확인

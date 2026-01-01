@@ -45,7 +45,25 @@ export function WebViewContainer({
     const token = useAuthStore((state) => state.token);
     const user = useAuthStore((state) => state.user);
 
-    const url = `${WEBVIEW_URL}${initialPath}`;
+    const base = WEBVIEW_URL.replace(/\/+$/, '');
+    const path = initialPath.startsWith('/') ? initialPath : `/${initialPath}`;
+    const url = `${base}${path}`;
+
+    // ==========================================================
+    // Token pre-injection (deterministic)
+    // - Inject accessToken BEFORE web scripts run to avoid initial 401/redirect race.
+    // ==========================================================
+    const injectedBeforeContentLoaded = token
+        ? `
+      (function() {
+        try {
+          localStorage.setItem('accessToken', ${JSON.stringify(token)});
+          window.dispatchEvent(new Event('dd-auth-token'));
+        } catch (e) {}
+      })();
+      true;
+    `
+        : `true;`;
 
     // ============================================
     // 앱 상태 변화 감지
@@ -175,6 +193,7 @@ export function WebViewContainer({
                 source={{ uri: url }}
                 onLoadStart={() => setLoading(true)}
                 onLoadEnd={handleLoadEnd}
+                injectedJavaScriptBeforeContentLoaded={injectedBeforeContentLoaded}
                 onMessage={handleMessage}
                 onNavigationStateChange={handleNavigationStateChange}
                 onShouldStartLoadWithRequest={handleShouldStartLoad}
