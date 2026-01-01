@@ -49,6 +49,17 @@ export function WebViewContainer({
     const path = initialPath.startsWith('/') ? initialPath : `/${initialPath}`;
     const url = `${base}${path}`;
 
+    // Some builds may ship without NativeWind/className wiring.
+    // Always keep WebView container layout deterministic with explicit RN styles.
+    const containerStyle = { flex: 1 } as const;
+    const centerStyle = {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#fff',
+        paddingHorizontal: 24,
+    } as const;
+
     // ==========================================================
     // Token pre-injection (deterministic)
     // - Inject accessToken BEFORE web scripts run to avoid initial 401/redirect race.
@@ -143,6 +154,19 @@ export function WebViewContainer({
     }, [setError, setLoading, webViewRef]);
 
     // ============================================
+    // Loading timeout (prevents "white screen" hang)
+    // ============================================
+    useEffect(() => {
+        if (!isLoading) return;
+        const t = setTimeout(() => {
+            setError(
+                `WebView loading timeout.\nURL=${url}\n(HTTP 차단/도메인 미연결/서버 다운일 수 있습니다)`,
+            );
+        }, 15000);
+        return () => clearTimeout(t);
+    }, [isLoading, url, setError]);
+
+    // ============================================
     // 컴포넌트 언마운트 시 상태 초기화
     // ============================================
     useEffect(() => {
@@ -161,28 +185,54 @@ export function WebViewContainer({
             return <ErrorComponent onRetry={handleRetry} />;
         }
         return (
-            <SafeAreaView className="flex-1 justify-center items-center bg-white">
-                <Text className="text-lg text-gray-700 mb-4">연결에 문제가 발생했습니다</Text>
-                <Text className="text-sm text-gray-500 mb-6">{error}</Text>
+            <SafeAreaView style={centerStyle}>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: '#111', marginBottom: 10 }}>
+                    연결에 문제가 발생했습니다
+                </Text>
+                <Text style={{ fontSize: 12, color: '#6B7280', marginBottom: 16, textAlign: 'center' }}>
+                    {String(error)}
+                </Text>
                 <Pressable
                     onPress={handleRetry}
-                    className="bg-blue-500 px-6 py-3 rounded-lg"
+                    style={{
+                        backgroundColor: '#3B82F6',
+                        paddingHorizontal: 18,
+                        paddingVertical: 12,
+                        borderRadius: 10,
+                    }}
                 >
-                    <Text className="text-white font-semibold">다시 시도</Text>
+                    <Text style={{ color: '#fff', fontWeight: '700' }}>다시 시도</Text>
                 </Pressable>
             </SafeAreaView>
         );
     }
 
     return (
-        <View className="flex-1">
+        <View style={containerStyle}>
             {/* 로딩 오버레이 */}
             {isLoading && (
-                <View className="absolute inset-0 z-10 justify-center items-center bg-white">
+                <View
+                    style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        zIndex: 10,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        backgroundColor: '#fff',
+                    }}
+                >
                     {LoadingComponent ? (
                         <LoadingComponent />
                     ) : (
-                        <ActivityIndicator size="large" color="#3B82F6" />
+                        <>
+                            <ActivityIndicator size="large" color="#3B82F6" />
+                            <Text style={{ marginTop: 10, color: '#6B7280' }}>
+                                WebView 로딩 중…
+                            </Text>
+                        </>
                     )}
                 </View>
             )}

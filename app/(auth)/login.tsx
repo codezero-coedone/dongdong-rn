@@ -81,8 +81,8 @@ export default function LoginScreen() {
   const handleSocialLogin = async () => {
     try {
       await socialLogin("kakao");
-      // 로그인 후 역할 선택(환자/보호자)로 이동
-      router.replace("/(auth)/role-selection");
+      // guardian 앱은 WebView 컨텐츠 앱. 로그인 후 즉시 WebView 탭으로 진입.
+      router.replace("/(tabs)");
     } catch (e: any) {
       console.log("social login error:", e);
       const msg =

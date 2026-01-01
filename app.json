@@ -16,6 +16,7 @@
     "android": {
       "package": "kr.slicemind.dongdong.guardian",
       "versionCode": 8,
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
