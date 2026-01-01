@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "dongdong-guardian",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "kr.slicemind.dongdong.guardian",
