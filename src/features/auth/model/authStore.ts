@@ -30,30 +30,11 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   login: async (email: string, password: string) => {
     set({ isLoading: true });
     try {
-      // TODO: 실제 API 호출로 대체
-      // const response = await authApi.login({ email, password });
-
-      // 임시 Mock 데이터
-      const mockUser: User = {
-        id: "1",
-        email,
-        name: email.split("@")[0],
-        provider: "email",
-      };
-      const mockToken = "mock_token_" + Date.now();
-      const mockRefreshToken = "mock_refresh_" + Date.now();
-
-      await secureStorage.setToken(mockToken);
-      await secureStorage.set("refresh_token", mockRefreshToken);
-      await secureStorage.setUser(mockUser);
-
-      set({
-        user: mockUser,
-        token: mockToken,
-        refreshToken: mockRefreshToken,
-        isAuthenticated: true,
-        isLoading: false,
-      });
+      // 결정성/실사용 정책: guardian 앱은 카카오 로그인만 지원.
+      // mock token/email 경로는 실사용에서 누수/이탈 위험이므로 즉시 차단한다.
+      throw new Error(
+        "이메일 로그인은 지원하지 않습니다. 카카오 로그인을 이용해 주세요.",
+      );
     } catch (error) {
       set({ isLoading: false });
       throw error;
@@ -63,30 +44,10 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   signup: async (email: string, password: string, name: string) => {
     set({ isLoading: true });
     try {
-      // TODO: 실제 API 호출로 대체
-      // const response = await authApi.signup({ email, password, name });
-
-      // 임시 Mock 데이터
-      const mockUser: User = {
-        id: "1",
-        email,
-        name,
-        provider: "email",
-      };
-      const mockToken = "mock_token_" + Date.now();
-      const mockRefreshToken = "mock_refresh_" + Date.now();
-
-      await secureStorage.setToken(mockToken);
-      await secureStorage.set("refresh_token", mockRefreshToken);
-      await secureStorage.setUser(mockUser);
-
-      set({
-        user: mockUser,
-        token: mockToken,
-        refreshToken: mockRefreshToken,
-        isAuthenticated: true,
-        isLoading: false,
-      });
+      // 결정성/실사용 정책: guardian 앱은 카카오 로그인만 지원.
+      throw new Error(
+        "이메일 회원가입은 지원하지 않습니다. 카카오로 가입/로그인해 주세요.",
+      );
     } catch (error) {
       set({ isLoading: false });
       throw error;
