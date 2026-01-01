@@ -42,28 +42,49 @@ export const ALLOWED_DOMAINS = [
 /** 허용된 URL scheme */
 export const ALLOWED_SCHEMES = ['https', 'http'] as const;
 
+function parseUrlLite(
+    url: string,
+): { protocol: string; hostname: string } | null {
+    // Very small URL parser for RN runtime environments where global URL may be missing.
+    // Supports: http(s)://host[:port]/...
+    const m = url.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):\/\/([^\/?#:]+)(?::\d+)?/);
+    if (!m) return null;
+    return { protocol: m[1].toLowerCase(), hostname: m[2].toLowerCase() };
+}
+
 /**
  * URL이 허용된 도메인인지 확인
  */
 export function isAllowedUrl(url: string): boolean {
     try {
         if (url === 'about:blank') return true;
-        const urlObj = new URL(url);
+        const parsed =
+            typeof (globalThis as any).URL === 'function'
+                ? (() => {
+                      const u = new URL(url);
+                      return {
+                          protocol: u.protocol.replace(':', '').toLowerCase(),
+                          hostname: u.hostname.toLowerCase(),
+                      };
+                  })()
+                : parseUrlLite(url);
+
+        if (!parsed) return false;
 
         // 개발 환경에서는 localhost 허용
-        if (__DEV__ && urlObj.hostname === 'localhost') {
+        if (__DEV__ && parsed.hostname === 'localhost') {
             return true;
         }
 
         // 허용된 scheme 확인
-        if (!ALLOWED_SCHEMES.includes(urlObj.protocol.replace(':', '') as any)) {
+        if (!ALLOWED_SCHEMES.includes(parsed.protocol as any)) {
             return false;
         }
 
         // 허용된 도메인 확인
         return ALLOWED_DOMAINS.some(
             (domain) =>
-                urlObj.hostname === domain || urlObj.hostname.endsWith(`.${domain}`)
+                parsed.hostname === domain || parsed.hostname.endsWith(`.${domain}`)
         );
     } catch {
         return false;
