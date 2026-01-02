@@ -44,13 +44,39 @@ export const ALLOWED_SCHEMES = ['https', 'http'] as const;
 
 function parseUrlLite(
     url: string,
-): { protocol: string; hostname: string } | null {
+): { protocol: string; hostname: string; pathname: string } | null {
     // Very small URL parser for RN runtime environments where global URL may be missing.
     // Supports: http(s)://host[:port]/...
-    const m = url.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):\/\/([^\/?#:]+)(?::\d+)?/);
+    const m = url.match(
+        /^([a-zA-Z][a-zA-Z0-9+.-]*):\/\/([^\/?#:]+)(?::\d+)?(\/[^?#]*)?/,
+    );
     if (!m) return null;
-    return { protocol: m[1].toLowerCase(), hostname: m[2].toLowerCase() };
+    return {
+        protocol: m[1].toLowerCase(),
+        hostname: m[2].toLowerCase(),
+        pathname: m[3] || '/',
+    };
 }
+
+/**
+ * WebView에서 "절대 노출되면 안 되는" 라우트/도메인 차단
+ * - Kakao 로그인은 RN 네이티브에서만 수행
+ * - WebView(dev-client)는 로그인 결과(토큰)만 소비
+ */
+const BLOCKED_HOST_SUFFIXES = [
+    // Kakao auth endpoints must never be opened inside our embedded WebView
+    'kakao.com',
+    'kakaocdn.net',
+    'daum.net',
+] as const;
+
+const BLOCKED_PATH_PREFIXES = [
+    // Web auth routes must be RN-only
+    '/login',
+    '/auth',
+    '/signup',
+    '/onboarding',
+] as const;
 
 /**
  * URL이 허용된 도메인인지 확인
@@ -65,6 +91,7 @@ export function isAllowedUrl(url: string): boolean {
                       return {
                           protocol: u.protocol.replace(':', '').toLowerCase(),
                           hostname: u.hostname.toLowerCase(),
+                          pathname: u.pathname || '/',
                       };
                   })()
                 : parseUrlLite(url);
@@ -81,11 +108,30 @@ export function isAllowedUrl(url: string): boolean {
             return false;
         }
 
+        // Block Kakao (and similar) auth domains inside embedded WebView (RN native only).
+        if (
+            BLOCKED_HOST_SUFFIXES.some(
+                (s) => parsed.hostname === s || parsed.hostname.endsWith(`.${s}`),
+            )
+        ) {
+            return false;
+        }
+
         // 허용된 도메인 확인
-        return ALLOWED_DOMAINS.some(
+        const domainOk = ALLOWED_DOMAINS.some(
             (domain) =>
                 parsed.hostname === domain || parsed.hostname.endsWith(`.${domain}`)
         );
+
+        if (!domainOk) return false;
+
+        // Block web auth routes (RN native only).
+        const path = parsed.pathname || '/';
+        if (BLOCKED_PATH_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`))) {
+            return false;
+        }
+
+        return true;
     } catch {
         return false;
     }

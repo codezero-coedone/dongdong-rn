@@ -45,6 +45,39 @@ export function WebViewContainer({
     const token = useAuthStore((state) => state.token);
     const user = useAuthStore((state) => state.user);
 
+    // ==========================================================
+    // HARD GATE: WebView must never mount before RN owns an accessToken.
+    // - Prevents any web auth(/login) exposure inside WebView.
+    // ==========================================================
+    if (!token) {
+        return (
+            <SafeAreaView style={centerStyle}>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: '#111', marginBottom: 10 }}>
+                    로그인이 필요합니다
+                </Text>
+                <Text style={{ fontSize: 12, color: '#6B7280', marginBottom: 16, textAlign: 'center' }}>
+                    카카오 로그인은 앱(RN)에서만 진행됩니다.{'\n'}
+                    WebView에서는 로그인 화면이 표시되지 않습니다.
+                </Text>
+                <Pressable
+                    onPress={() => {
+                        // Stay deterministic: just ask the app router to show auth flow via global store.
+                        // (RootLayout will redirect to /(auth)/permission when not authenticated.)
+                        setError(null);
+                    }}
+                    style={{
+                        backgroundColor: '#3B82F6',
+                        paddingHorizontal: 18,
+                        paddingVertical: 12,
+                        borderRadius: 10,
+                    }}
+                >
+                    <Text style={{ color: '#fff', fontWeight: '700' }}>확인</Text>
+                </Pressable>
+            </SafeAreaView>
+        );
+    }
+
     const base = WEBVIEW_URL.replace(/\/+$/, '');
     const path = initialPath.startsWith('/') ? initialPath : `/${initialPath}`;
     const url = `${base}${path}`;
@@ -129,9 +162,15 @@ export function WebViewContainer({
     // ============================================
     const handleShouldStartLoad = useCallback(
         (request: { url: string }) => {
-            return isAllowedUrl(request.url);
+            const ok = isAllowedUrl(request.url);
+            if (!ok) {
+                setError(
+                    `차단된 이동입니다.\nURL=${request.url}\n\n(로그인/인증 페이지는 RN 네이티브에서만 가능합니다)`,
+                );
+            }
+            return ok;
         },
-        []
+        [setError]
     );
 
     // ============================================
