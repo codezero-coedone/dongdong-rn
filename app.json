@@ -2,7 +2,7 @@
   "expo": {
     "name": "동동",
     "slug": "dongdong-guardian",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "dongdong-guardian",
@@ -11,11 +11,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "kr.slicemind.dongdong.guardian",
-      "buildNumber": "9"
+      "buildNumber": "10"
     },
     "android": {
       "package": "kr.slicemind.dongdong.guardian",
-      "versionCode": 9,
+      "versionCode": 10,
       "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
