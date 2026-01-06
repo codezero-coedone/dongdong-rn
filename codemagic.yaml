@@ -50,16 +50,19 @@ workflows:
             const p='./app.json';
             const j=JSON.parse(fs.readFileSync(p,'utf8'));
             // Play requires a strictly increasing versionCode.
-            // CI build numbers can reset or be reused on rebuilds, causing duplicates.
-            // Use epoch seconds (fits in int32 until ~2036) to guarantee uniqueness.
-            const vc=Math.floor(Date.now()/1000);
-            if (!(Number.isFinite(vc) && vc > 0 && vc < 2100000000)) {
-              throw new Error('invalid versionCode='+vc);
-            }
+            // Some rebuilds can reuse Codemagic build numbers; avoid duplicates by using time + a small offset.
+            const nowSec=Math.floor(Date.now()/1000);
+            const bn=Number(process.env.CM_BUILD_NUMBER||0);
+            const id=String(process.env.CM_BUILD_ID||process.env.CM_BUILD_RUN_ID||process.env.CM_BUILD_UUID||'');
+            const hash=(s)=>{let h=0; for (let i=0;i<s.length;i++) h=(h*31 + s.charCodeAt(i))>>>0; return h;};
+            const offset=(id ? (hash(id)%997)+1 : (Number.isFinite(bn)&&bn>0 ? (bn%997)+1 : 1));
+            const vc=nowSec + offset;
+            if (!(Number.isFinite(vc) && vc > 0 && vc < 2100000000)) throw new Error('invalid versionCode='+vc);
             j.expo=j.expo||{};
             j.expo.android=j.expo.android||{};
             j.expo.android.versionCode=vc;
             fs.writeFileSync(p, JSON.stringify(j,null,2)+'\\n');
+            console.log('[ci] now_sec='+nowSec+' offset='+offset+' build_number='+bn+' build_id_len='+id.length);
             console.log('[ci] android.versionCode='+vc);
           "
       - name: Expo prebuild (android)
