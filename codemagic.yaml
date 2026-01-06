@@ -5,6 +5,8 @@ workflows:
     environment:
       node: 20.19.4
       java: 17
+      android_signing:
+        - keystore_reference: dongdong-upload
       vars:
         APP_DIR: .
         NODE_ENV: "production"
