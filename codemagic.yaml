@@ -62,7 +62,10 @@ workflows:
             KEYSTORE_PATH="$(find "$HOME" -maxdepth 5 -type f -name '*.jks' 2>/dev/null | head -n 1 || true)"
           fi
 
-          test -n "$KEYSTORE_PATH" && test -f "$KEYSTORE_PATH" || (echo "Keystore file not found. Upload a .jks (Android keystore integration or Secure files) and ensure CM_KEYSTORE_PASSWORD is set." && exit 2)
+          if [ -z "$KEYSTORE_PATH" ] || [ ! -f "$KEYSTORE_PATH" ]; then
+            echo "Keystore file not found. Upload a .jks (Android keystore integration or Secure files) and ensure CM_KEYSTORE_PASSWORD is set."
+            exit 2
+          fi
           echo "KEYSTORE_PATH=$KEYSTORE_PATH"
           ls -la "$KEYSTORE_PATH" || true
 
@@ -71,7 +74,10 @@ workflows:
           if [ -z "$KEY_ALIAS" ]; then
             KEY_ALIAS="$(keytool -list -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" 2>/dev/null | awk -F, 'NF>=1 {gsub(/^[ \t]+|[ \t]+$/, "", $1); if ($1!="") {print $1; exit}}')"
           fi
-          test -n "$KEY_ALIAS" || (echo "Failed to detect key alias. Set CM_KEY_ALIAS explicitly." && exit 2)
+          if [ -z "$KEY_ALIAS" ]; then
+            echo "Failed to detect key alias. Set CM_KEY_ALIAS explicitly."
+            exit 2
+          fi
 
           KEY_PASS="${CM_KEY_PASSWORD:-$CM_KEYSTORE_PASSWORD}"
 
@@ -97,7 +103,10 @@ workflows:
         script: |
           cd "$APP_DIR/android"
           AAB="$(ls -1 app/build/outputs/bundle/release/*.aab | head -n 1 || true)"
-          test -n "$AAB" || (echo "AAB not found" && exit 3)
+          if [ -z "$AAB" ]; then
+            echo "AAB not found"
+            exit 3
+          fi
           echo "AAB=$AAB"
           jarsigner -verify -verbose -certs "$AAB" || exit 4
           sha256sum "$AAB" | tee "$AAB.sha256.txt"
