@@ -9,6 +9,7 @@ workflows:
         - dongdong-upload
       groups:
         - google_credentials
+        - dev
       vars:
         APP_DIR: .
         NODE_ENV: "production"
