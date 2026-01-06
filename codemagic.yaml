@@ -105,7 +105,8 @@ workflows:
           KEY_PASS="${CM_KEY_PASSWORD:-$CM_KEYSTORE_PASSWORD}"
 
           echo "=== SIGNING_INFO (guardian) ==="
-          echo "package=$(node -e \"console.log(require('../app.json').expo.android.package)\")"
+          PKG="$(node -e \"console.log(require('../app.json').expo.android.package)\")"
+          echo "package=$PKG"
           echo "versionCode=$(node -e \"console.log(require('../app.json').expo.android.versionCode)\")"
           echo "KEY_ALIAS=$KEY_ALIAS"
           keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" 2>/dev/null | grep -E "SHA1:|SHA256:" || true
@@ -113,7 +114,17 @@ workflows:
             KEY_HASH="$(keytool -exportcert -alias "$KEY_ALIAS" -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" 2>/dev/null | openssl sha1 -binary | openssl base64 2>/dev/null || true)"
             if [ -n "$KEY_HASH" ]; then
               echo "KAKAO_KEY_HASH=$KEY_HASH"
+              # Keep legacy single-line file for backwards-compat.
               echo "$KEY_HASH" > "$CM_BUILD_DIR/kakao_key_hash.txt"
+              # Also write a traceable file to avoid confusion across builds/apps.
+              SAFE_PKG="${PKG//./_}"
+              OUT="$CM_BUILD_DIR/kakao_key_hash_${SAFE_PKG}_${CM_BUILD_NUMBER}.txt"
+              {
+                echo "package=$PKG"
+                echo "build_number=${CM_BUILD_NUMBER:-}"
+                echo "key_alias=$KEY_ALIAS"
+                echo "kakao_key_hash_base64=$KEY_HASH"
+              } > "$OUT"
             fi
           fi
 
@@ -135,6 +146,7 @@ workflows:
           sha256sum "$AAB" | tee "$AAB.sha256.txt"
     artifacts:
       - kakao_key_hash.txt
+      - kakao_key_hash_*.txt
       - android/app/build/outputs/bundle/release/*.aab
       - android/app/build/outputs/bundle/release/*.sha256.txt
       - android/app/build/outputs/mapping/release/mapping.txt
