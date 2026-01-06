@@ -7,6 +7,11 @@ workflows:
       java: 17
       vars:
         APP_DIR: .
+        # Public app config (keep builds deterministic even if Codemagic UI vars are missing)
+        EXPO_PUBLIC_API_URL: "http://api.dongdong.io:3000/api/v1"
+        EXPO_PUBLIC_WEBVIEW_URL: "https://guardian.dongdong.kr"
+        EXPO_PUBLIC_KAKAO_APP_KEY: "47bc9c4a41a6efc98804915332fbc7e8"
+        KAKAO_APP_KEY: "47bc9c4a41a6efc98804915332fbc7e8"
         # Secrets must be set in Codemagic UI (Environment variables / Groups):
         # - CM_KEYSTORE_PASSWORD
         # - CM_KEY_PASSWORD   (if different from store password)
