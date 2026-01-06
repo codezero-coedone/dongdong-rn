@@ -9,8 +9,7 @@ workflows:
         APP_DIR: .
         # Secrets must be set in Codemagic UI (Environment variables / Groups):
         # - CM_KEYSTORE_PASSWORD
-        # - CM_KEY_ALIAS
-        # - CM_KEY_PASSWORD
+        # - CM_KEY_PASSWORD   (if different from store password)
         # Secure file upload (keystore): upload as `upload.jks` (or change KEYSTORE_FILE below).
         KEYSTORE_FILE: upload.jks
     scripts:
@@ -35,11 +34,20 @@ workflows:
             if [ -n "$p" ] && [ -f "$p" ]; then KEYSTORE_PATH="$p"; break; fi
           done
           test -n "$KEYSTORE_PATH" || (echo "Missing keystore file (expected $KEYSTORE_FILE in CM_BUILD_DIR/CM_SECURE_FILES_PATH or CM_KEYSTORE_PATH)" && exit 2)
+
+          # Auto-detect alias to avoid manual mistakes (works when keystore has a single entry).
+          KEY_ALIAS="${CM_KEY_ALIAS:-}"
+          if [ -z "$KEY_ALIAS" ]; then
+            KEY_ALIAS="$(keytool -list -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" 2>/dev/null | awk -F, 'NF>=1 {gsub(/^[ \t]+|[ \t]+$/, "", $1); if ($1!="") {print $1; exit}}')"
+          fi
+          test -n "$KEY_ALIAS" || (echo "Failed to detect key alias. Set CM_KEY_ALIAS explicitly." && exit 2)
+
+          KEY_PASS="${CM_KEY_PASSWORD:-$CM_KEYSTORE_PASSWORD}"
           ./gradlew --no-daemon --max-workers=1 :app:bundleRelease \
             -Pandroid.injected.signing.store.file="$KEYSTORE_PATH" \
             -Pandroid.injected.signing.store.password="$CM_KEYSTORE_PASSWORD" \
-            -Pandroid.injected.signing.key.alias="$CM_KEY_ALIAS" \
-            -Pandroid.injected.signing.key.password="$CM_KEY_PASSWORD"
+            -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$KEY_PASS"
       - name: Verify + SHA256
         script: |
           cd "$APP_DIR/android"
