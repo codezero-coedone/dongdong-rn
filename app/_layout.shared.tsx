@@ -17,10 +17,12 @@ import {
   View,
 } from "react-native";
 import "react-native-reanimated";
+import "../global.css";
 
 import { useAuthStore } from "@/features/auth";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { QueryProvider } from "@/shared/lib/react-query";
+import { DevOverlay } from "@/shared/devtools/DevOverlay";
 
 function parseSemver(v: string): [number, number, number] {
   const parts = String(v || "")
@@ -107,7 +109,7 @@ function ForceUpdateScreen({
 }
 
 function useProtectedRoute() {
-  const { isAuthenticated, isLoading } = useAuthStore();
+  const { isAuthenticated, isLoading, isSignupComplete } = useAuthStore();
   const segments = useSegments();
   const router = useRouter();
 
@@ -118,10 +120,13 @@ function useProtectedRoute() {
 
     if (!isAuthenticated && !inAuthGroup) {
       router.replace("/(auth)/permission");
-    } else if (isAuthenticated && inAuthGroup) {
+    } else if (isAuthenticated && !isSignupComplete && !inAuthGroup) {
+      // 로그인 후, RN 네이티브 회원가입(환자등록) 완료 전에는 WebView로 가지 않는다.
+      router.replace("/(auth)/role-selection");
+    } else if (isAuthenticated && isSignupComplete && inAuthGroup) {
       router.replace("/(tabs)");
     }
-  }, [isAuthenticated, isLoading, segments, router]);
+  }, [isAuthenticated, isSignupComplete, isLoading, segments, router]);
 }
 
 function LoadingScreen() {
@@ -177,6 +182,7 @@ export default function RootLayout() {
           />
         </Stack>
         <StatusBar style="auto" />
+        <DevOverlay />
       </ThemeProvider>
     </QueryProvider>
   );
