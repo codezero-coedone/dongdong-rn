@@ -12,6 +12,8 @@ workflows:
       vars:
         APP_DIR: .
         NODE_ENV: "production"
+        # Versioning (prevent Play upload failures due to non-increasing versionCode)
+        VC_BASE: 200000
         # Public app config (keep builds deterministic even if Codemagic UI vars are missing)
         EXPO_PUBLIC_API_URL: "http://api.dongdong.io:3000/api/v1"
         EXPO_PUBLIC_WEBVIEW_URL: "https://guardian.dongdong.kr"
@@ -32,6 +34,22 @@ workflows:
           export npm_config_production=false
           npm ci
           node -e "require('./metro.config.js'); console.log('[ci] metro.config.js OK')" || exit 2
+      - name: Set Android versionCode (CI monotonic)
+        script: |
+          cd "$APP_DIR"
+          node -e "
+            const fs=require('fs');
+            const p='./app.json';
+            const j=JSON.parse(fs.readFileSync(p,'utf8'));
+            const base=Number(process.env.VC_BASE||200000);
+            const n=Number(process.env.CM_BUILD_NUMBER||0);
+            const vc=base + (Number.isFinite(n)&&n>0?n:1);
+            j.expo=j.expo||{};
+            j.expo.android=j.expo.android||{};
+            j.expo.android.versionCode=vc;
+            fs.writeFileSync(p, JSON.stringify(j,null,2)+'\\n');
+            console.log('[ci] android.versionCode='+vc);
+          "
       - name: Expo prebuild (android)
         script: |
           cd "$APP_DIR"
