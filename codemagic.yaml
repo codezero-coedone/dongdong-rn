@@ -6,7 +6,11 @@ workflows:
       node: 20.19.4
       java: 17
       android_signing:
-        - dongdong-upload
+        # IMPORTANT:
+        # Guardian Play Console expects a DIFFERENT upload certificate than caregiver.
+        # If you sign guardian with the wrong keystore, Play will reject with:
+        # "signed with the wrong key ... found SHA1=..., expected SHA1=..."
+        - guardian-upload
       groups:
         - google_credentials
         - dev
@@ -23,8 +27,11 @@ workflows:
         # Secrets must be set in Codemagic UI (Environment variables / Groups):
         # - CM_KEYSTORE_PASSWORD
         # - CM_KEY_PASSWORD   (if different from store password)
-        # Secure file upload (keystore): upload as `upload.jks` (or change KEYSTORE_FILE below).
-        KEYSTORE_FILE: upload.jks
+        # Secure file upload (keystore): upload as `guardian-upload.jks` (recommended).
+        KEYSTORE_FILE: guardian-upload.jks
+        # Play Console expected upload cert SHA1 for guardian (from Play error message).
+        # Used as a guard to fail fast if Codemagic picked the wrong keystore.
+        EXPECTED_UPLOAD_CERT_SHA1: "75:69:F0:C6:EF:65:C2:8A:A9:04:40:41:D6:C6:08:0C:80:E6:FF:10"
     scripts:
       - name: Install dependencies (npm ci)
         script: |
@@ -109,7 +116,18 @@ workflows:
           echo "package=$PKG"
           echo "versionCode=$(node -e \"console.log(require('../app.json').expo.android.versionCode)\")"
           echo "KEY_ALIAS=$KEY_ALIAS"
-          keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" 2>/dev/null | grep -E "SHA1:|SHA256:" || true
+          CERT_INFO="$(keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" 2>/dev/null || true)"
+          echo "$CERT_INFO" | grep -E "SHA1:|SHA256:" || true
+          # Fail-fast guard: ensure we are signing with the upload certificate Play expects for guardian.
+          if [ -n "${EXPECTED_UPLOAD_CERT_SHA1:-}" ]; then
+            FOUND_SHA1="$(echo "$CERT_INFO" | grep -E "SHA1:" | head -n 1 | sed -E 's/.*SHA1:[[:space:]]*//')"
+            if [ -n "$FOUND_SHA1" ] && [ "$FOUND_SHA1" != "$EXPECTED_UPLOAD_CERT_SHA1" ]; then
+              echo "FATAL: Wrong signing cert for guardian."
+              echo "found_sha1=$FOUND_SHA1"
+              echo "expected_sha1=$EXPECTED_UPLOAD_CERT_SHA1"
+              exit 9
+            fi
+          fi
           if command -v openssl >/dev/null 2>&1; then
             KEY_HASH="$(keytool -exportcert -alias "$KEY_ALIAS" -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" 2>/dev/null | openssl sha1 -binary | openssl base64 2>/dev/null || true)"
             if [ -n "$KEY_HASH" ]; then
