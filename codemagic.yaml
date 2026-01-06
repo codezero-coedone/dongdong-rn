@@ -43,6 +43,20 @@ workflows:
           test -n "$KEY_ALIAS" || (echo "Failed to detect key alias. Set CM_KEY_ALIAS explicitly." && exit 2)
 
           KEY_PASS="${CM_KEY_PASSWORD:-$CM_KEYSTORE_PASSWORD}"
+
+          echo "=== SIGNING_INFO (guardian) ==="
+          echo "package=$(node -e \"console.log(require('../app.json').expo.android.package)\")"
+          echo "versionCode=$(node -e \"console.log(require('../app.json').expo.android.versionCode)\")"
+          echo "KEY_ALIAS=$KEY_ALIAS"
+          keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" 2>/dev/null | grep -E "SHA1:|SHA256:" || true
+          if command -v openssl >/dev/null 2>&1; then
+            KEY_HASH="$(keytool -exportcert -alias "$KEY_ALIAS" -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" 2>/dev/null | openssl sha1 -binary | openssl base64 2>/dev/null || true)"
+            if [ -n "$KEY_HASH" ]; then
+              echo "KAKAO_KEY_HASH=$KEY_HASH"
+              echo "$KEY_HASH" > "$CM_BUILD_DIR/kakao_key_hash.txt"
+            fi
+          fi
+
           ./gradlew --no-daemon --max-workers=1 :app:bundleRelease \
             -Pandroid.injected.signing.store.file="$KEYSTORE_PATH" \
             -Pandroid.injected.signing.store.password="$CM_KEYSTORE_PASSWORD" \
@@ -57,6 +71,7 @@ workflows:
           jarsigner -verify -verbose -certs "$AAB" || exit 4
           sha256sum "$AAB" | tee "$AAB.sha256.txt"
     artifacts:
+      - kakao_key_hash.txt
       - android/app/build/outputs/bundle/release/*.aab
       - android/app/build/outputs/bundle/release/*.sha256.txt
       - android/app/build/outputs/mapping/release/mapping.txt
