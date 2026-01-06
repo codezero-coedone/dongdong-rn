@@ -84,6 +84,88 @@ workflows:
           ls -la "$CM_BUILD_DIR/guardian_upload_cert.pem" || true
     artifacts:
       - guardian_upload_cert.pem
+
+  android_guardian_internal_apk_dev:
+    name: guardian-internal-apk-dev
+    max_build_duration: 120
+    cache:
+      cache_paths:
+        - $HOME/.gradle/caches
+        - $HOME/.gradle/wrapper
+        - $HOME/.npm
+        - $HOME/.cache/yarn
+        - $HOME/.cache/metro
+        - node_modules
+    environment:
+      node: 20.19.4
+      java: 17
+      android_signing:
+        - guardian-upload
+      groups:
+        - dev
+      vars:
+        APP_DIR: .
+        NODE_ENV: "production"
+        VC_BASE: 900000
+        # IMPORTANT: dev-only package so it can be installed immediately without Play upload-key restrictions.
+        # This does NOT replace the Play package (kr.slicemind.dongdong.guardian).
+        DEV_ANDROID_PACKAGE: "kr.slicemind.dongdong.guardian.dev"
+        EXPO_PUBLIC_API_URL: "http://api.dongdong.io:3000/api/v1"
+        EXPO_PUBLIC_WEBVIEW_URL: "https://guardian.dongdong.kr"
+        EXPO_PUBLIC_KAKAO_APP_KEY: "47bc9c4a41a6efc98804915332fbc7e8"
+        KAKAO_APP_KEY: "47bc9c4a41a6efc98804915332fbc7e8"
+        KEYSTORE_FILE: guardian-upload.jks
+    scripts:
+      - name: Install dependencies (npm ci)
+        script: |
+          cd "$APP_DIR"
+          export npm_config_production=false
+          npm ci
+      - name: Set Android package + versionCode (DEV internal)
+        script: |
+          cd "$APP_DIR"
+          node -e "
+            const fs=require('fs');
+            const p='./app.json';
+            const j=JSON.parse(fs.readFileSync(p,'utf8'));
+            const nowSec=Math.floor(Date.now()/1000);
+            const bn=Number(process.env.CM_BUILD_NUMBER||0);
+            const id=String(process.env.CM_BUILD_ID||process.env.CM_BUILD_RUN_ID||process.env.CM_BUILD_UUID||'');
+            const hash=(s)=>{let h=0; for (let i=0;i<s.length;i++) h=(h*31 + s.charCodeAt(i))>>>0; return h;};
+            const offset=(id ? (hash(id)%997)+1 : (Number.isFinite(bn)&&bn>0 ? (bn%997)+1 : 1));
+            const vc=nowSec + offset;
+            j.expo=j.expo||{};
+            j.expo.android=j.expo.android||{};
+            j.expo.android.package=String(process.env.DEV_ANDROID_PACKAGE||j.expo.android.package);
+            j.expo.android.versionCode=vc;
+            fs.writeFileSync(p, JSON.stringify(j,null,2)+'\n');
+            console.log('[ci] android.package='+j.expo.android.package);
+            console.log('[ci] android.versionCode='+j.expo.android.versionCode);
+          "
+      - name: Expo prebuild (android)
+        script: |
+          cd "$APP_DIR"
+          rm -rf android ios
+          npx expo prebuild --platform android --clean
+      - name: Android assembleRelease (APK)
+        script: |
+          cd "$APP_DIR/android"
+          ./gradlew --no-daemon --build-cache --max-workers=2 :app:assembleRelease
+      - name: Verify + SHA256 (APK)
+        script: |
+          cd "$APP_DIR/android"
+          APK="$(ls -1 app/build/outputs/apk/release/*.apk | head -n 1 || true)"
+          if [ -z "$APK" ]; then
+            echo "APK not found"
+            exit 3
+          fi
+          echo "APK=$APK"
+          jarsigner -verify -verbose -certs "$APK" || exit 4
+          sha256sum "$APK" | tee "$APK.sha256.txt"
+    artifacts:
+      - android/app/build/outputs/apk/release/*.apk
+      - android/app/build/outputs/apk/release/*.sha256.txt
+      - android/app/build/reports/**/*
   android_guardian_aab:
     name: guardian-android-aab
     max_build_duration: 120
