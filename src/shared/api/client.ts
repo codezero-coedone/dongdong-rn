@@ -43,6 +43,7 @@ const apiClient: AxiosInstance = axios.create({
 });
 
 let seq = 0;
+const DEVTOOLS_ENABLED = Boolean(__DEV__ || process.env.EXPO_PUBLIC_DEVTOOLS === "1");
 
 /**
  * Request Interceptor
@@ -50,17 +51,19 @@ let seq = 0;
  */
 apiClient.interceptors.request.use(
   async (config) => {
-    const rid = `${Date.now()}-${++seq}`;
-    (config as any).__dd = {
-      rid,
-      startedAt: Date.now(),
-      method: String(config.method || "get").toUpperCase(),
-      url: String(config.url || ""),
-    };
-    try {
-      config.headers["X-DD-Request-Id"] = rid;
-    } catch {
-      // ignore
+    if (DEVTOOLS_ENABLED) {
+      const rid = `${Date.now()}-${++seq}`;
+      (config as any).__dd = {
+        rid,
+        startedAt: Date.now(),
+        method: String(config.method || "get").toUpperCase(),
+        url: String(config.url || ""),
+      };
+      try {
+        config.headers["X-DD-Request-Id"] = rid;
+      } catch {
+        // ignore
+      }
     }
 
     const token = await secureStorage.getToken();
@@ -76,13 +79,15 @@ apiClient.interceptors.request.use(
       );
     }
 
-    const dd = (config as any).__dd;
-    devlog({
-      scope: "API",
-      level: "info",
-      message: `${dd?.method || "GET"} ${dd?.url || config.url || ""} → …`,
-      meta: { rid: dd?.rid, method: dd?.method, url: dd?.url },
-    });
+    if (DEVTOOLS_ENABLED) {
+      const dd = (config as any).__dd;
+      devlog({
+        scope: "API",
+        level: "info",
+        message: `${dd?.method || "GET"} ${dd?.url || config.url || ""} → …`,
+        meta: { rid: dd?.rid, method: dd?.method, url: dd?.url },
+      });
+    }
 
     return config;
   },
@@ -102,20 +107,24 @@ apiClient.interceptors.response.use(
       console.log(`✅ [API Response] ${response.config.url}`, response.status);
     }
 
-    try {
-      const dd = (response.config as any)?.__dd;
-      const startedAt = typeof dd?.startedAt === "number" ? dd.startedAt : undefined;
-      const ms = startedAt ? Date.now() - startedAt : undefined;
-      const url = dd?.url || response.config.url || "";
-      const method = dd?.method || String(response.config.method || "get").toUpperCase();
-      devlog({
-        scope: "API",
-        level: "info",
-        message: `${method} ${url} → ${response.status}${typeof ms === "number" ? ` (${ms}ms)` : ""}`,
-        meta: { rid: dd?.rid, method, url, status: response.status, ms },
-      });
-    } catch {
-      // ignore
+    if (DEVTOOLS_ENABLED) {
+      try {
+        const dd = (response.config as any)?.__dd;
+        const startedAt =
+          typeof dd?.startedAt === "number" ? dd.startedAt : undefined;
+        const ms = startedAt ? Date.now() - startedAt : undefined;
+        const url = dd?.url || response.config.url || "";
+        const method =
+          dd?.method || String(response.config.method || "get").toUpperCase();
+        devlog({
+          scope: "API",
+          level: "info",
+          message: `${method} ${url} → ${response.status}${typeof ms === "number" ? ` (${ms}ms)` : ""}`,
+          meta: { rid: dd?.rid, method, url, status: response.status, ms },
+        });
+      } catch {
+        // ignore
+      }
     }
     return response;
   },
@@ -130,35 +139,39 @@ apiClient.interceptors.response.use(
       );
     }
 
-    try {
-      const dd = (originalRequest as any)?.__dd;
-      const startedAt = typeof dd?.startedAt === "number" ? dd.startedAt : undefined;
-      const ms = startedAt ? Date.now() - startedAt : undefined;
-      const status = (error as any)?.response?.status;
-      const url = dd?.url || originalRequest?.url || "";
-      const method = dd?.method || String(originalRequest?.method || "get").toUpperCase();
-      const backendMsg =
-        (error as any)?.response?.data?.message ||
-        (error as any)?.response?.data?.error ||
-        "";
+    if (DEVTOOLS_ENABLED) {
+      try {
+        const dd = (originalRequest as any)?.__dd;
+        const startedAt =
+          typeof dd?.startedAt === "number" ? dd.startedAt : undefined;
+        const ms = startedAt ? Date.now() - startedAt : undefined;
+        const status = (error as any)?.response?.status;
+        const url = dd?.url || originalRequest?.url || "";
+        const method =
+          dd?.method || String(originalRequest?.method || "get").toUpperCase();
+        const backendMsg =
+          (error as any)?.response?.data?.message ||
+          (error as any)?.response?.data?.error ||
+          "";
 
-      if (typeof status === "number") {
-        devlog({
-          scope: "API",
-          level: status >= 500 ? "error" : status >= 400 ? "warn" : "info",
-          message: `${method} ${url} → ${status}${typeof ms === "number" ? ` (${ms}ms)` : ""}${backendMsg ? ` | ${String(backendMsg)}` : ""}`,
-          meta: { rid: dd?.rid, method, url, status, ms },
-        });
-      } else {
-        devlog({
-          scope: "API",
-          level: "error",
-          message: `${method} ${url} → NETWORK${typeof ms === "number" ? ` (${ms}ms)` : ""} | ${String((error as any)?.message || error)}`,
-          meta: { rid: dd?.rid, method, url, ms },
-        });
+        if (typeof status === "number") {
+          devlog({
+            scope: "API",
+            level: status >= 500 ? "error" : status >= 400 ? "warn" : "info",
+            message: `${method} ${url} → ${status}${typeof ms === "number" ? ` (${ms}ms)` : ""}${backendMsg ? ` | ${String(backendMsg)}` : ""}`,
+            meta: { rid: dd?.rid, method, url, status, ms },
+          });
+        } else {
+          devlog({
+            scope: "API",
+            level: "error",
+            message: `${method} ${url} → NETWORK${typeof ms === "number" ? ` (${ms}ms)` : ""} | ${String((error as any)?.message || error)}`,
+            meta: { rid: dd?.rid, method, url, ms },
+          });
+        }
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
     }
 
     // 401 에러이고, 이미 재시도한 요청이 아닌 경우
