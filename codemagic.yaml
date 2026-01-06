@@ -1,4 +1,81 @@
 workflows:
+  guardian_export_upload_cert:
+    name: guardian-export-upload-cert
+    max_build_duration: 30
+    environment:
+      java: 17
+      android_signing:
+        - guardian-upload
+      vars:
+        APP_DIR: .
+        KEYSTORE_FILE: guardian-upload.jks
+        EXPECTED_UPLOAD_CERT_SHA1: "75:69:F0:C6:EF:65:C2:8A:A9:04:40:41:D6:C6:08:0C:80:E6:FF:10"
+    scripts:
+      - name: Export guardian upload certificate PEM (for Play upload key reset)
+        script: |
+          cd "$APP_DIR/android"
+          KEYSTORE_PATH=""
+          echo "KEYSTORE_FILE=${KEYSTORE_FILE:-}"
+          echo "CM_KEYSTORE_PATH=${CM_KEYSTORE_PATH:-}"
+          echo "CM_SECURE_FILES_PATH=${CM_SECURE_FILES_PATH:-}"
+          echo "CM_BUILD_DIR=${CM_BUILD_DIR:-}"
+
+          if [ -n "${CM_KEYSTORE_PATH:-}" ] && [ -f "${CM_KEYSTORE_PATH:-}" ]; then
+            KEYSTORE_PATH="${CM_KEYSTORE_PATH:-}"
+          fi
+          if [ -z "$KEYSTORE_PATH" ] && [ -n "${CM_KEYSTORE_PATH:-}" ] && [ -d "${CM_KEYSTORE_PATH:-}" ]; then
+            if [ -n "${KEYSTORE_FILE:-}" ] && [ -f "${CM_KEYSTORE_PATH:-}/$KEYSTORE_FILE" ]; then
+              KEYSTORE_PATH="${CM_KEYSTORE_PATH:-}/$KEYSTORE_FILE"
+            else
+              KEYSTORE_PATH="$(find "${CM_KEYSTORE_PATH:-}" -maxdepth 2 -type f -name '*.jks' 2>/dev/null | head -n 1 || true)"
+            fi
+          fi
+          if [ -z "$KEYSTORE_PATH" ] && [ -n "${CM_SECURE_FILES_PATH:-}" ] && [ -f "${CM_SECURE_FILES_PATH:-}/$KEYSTORE_FILE" ]; then
+            KEYSTORE_PATH="${CM_SECURE_FILES_PATH:-}/$KEYSTORE_FILE"
+          fi
+          if [ -z "$KEYSTORE_PATH" ] && [ -f "$CM_BUILD_DIR/$KEYSTORE_FILE" ]; then
+            KEYSTORE_PATH="$CM_BUILD_DIR/$KEYSTORE_FILE"
+          fi
+          if [ -z "$KEYSTORE_PATH" ] || [ ! -f "$KEYSTORE_PATH" ]; then
+            echo "Keystore file not found."
+            exit 2
+          fi
+          if [ -z "${CM_KEYSTORE_PASSWORD:-}" ]; then
+            echo "Missing CM_KEYSTORE_PASSWORD."
+            exit 2
+          fi
+
+          KEYTOOL_LIST="$(keytool -list -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" 2>&1)" || {
+            echo "Failed to read keystore with CM_KEYSTORE_PASSWORD."
+            echo "$KEYTOOL_LIST" | head -n 20
+            exit 8
+          }
+          KEY_ALIAS="$(echo "$KEYTOOL_LIST" | awk -F, 'NF>=1 {gsub(/^[ \t]+|[ \t]+$/, "", $1); if ($1!="" && $1!~/(Keystore type|Keystore provider)/) {print $1; exit}}')"
+          if [ -z "$KEY_ALIAS" ]; then
+            echo "Failed to detect key alias."
+            exit 2
+          fi
+          echo "KEY_ALIAS=$KEY_ALIAS"
+
+          CERT_INFO="$(keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" 2>&1)" || {
+            echo "Failed to read cert details."
+            echo "$CERT_INFO" | head -n 40
+            exit 8
+          }
+          echo "$CERT_INFO" | grep -E "SHA1:|SHA256:" || true
+          FOUND_SHA1="$(echo "$CERT_INFO" | grep -E "SHA1:" | head -n 1 | sed -E 's/.*SHA1:[[:space:]]*//')"
+          echo "FOUND_SHA1=$FOUND_SHA1"
+          echo "EXPECTED_SHA1=${EXPECTED_UPLOAD_CERT_SHA1:-}"
+
+          # Export PEM (no secrets inside). This artifact is used to request Play "Upload key reset".
+          keytool -exportcert -rfc \
+            -alias "$KEY_ALIAS" \
+            -keystore "$KEYSTORE_PATH" \
+            -storepass "$CM_KEYSTORE_PASSWORD" \
+            -file "$CM_BUILD_DIR/guardian_upload_cert.pem"
+          ls -la "$CM_BUILD_DIR/guardian_upload_cert.pem" || true
+    artifacts:
+      - guardian_upload_cert.pem
   android_guardian_aab:
     name: guardian-android-aab
     max_build_duration: 120
@@ -139,9 +216,9 @@ workflows:
           KEY_PASS="${CM_KEY_PASSWORD:-$CM_KEYSTORE_PASSWORD}"
 
           echo "=== SIGNING_INFO (guardian) ==="
-          PKG="$(node -e \"console.log(require('../app.json').expo.android.package)\")"
+          PKG="$(node -p "require('../app.json').expo.android.package")"
           echo "package=$PKG"
-          echo "versionCode=$(node -e \"console.log(require('../app.json').expo.android.versionCode)\")"
+          echo "versionCode=$(node -p "require('../app.json').expo.android.versionCode")"
           echo "KEY_ALIAS=$KEY_ALIAS"
           CERT_INFO="$(keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" 2>&1)" || {
             echo "Failed to read cert details (wrong password/alias?)"
