@@ -1,0 +1,56 @@
+workflows:
+  android_guardian_aab:
+    name: guardian-android-aab
+    max_build_duration: 120
+    environment:
+      node: 20.19.4
+      java: 17
+      vars:
+        APP_DIR: .
+        # Secrets must be set in Codemagic UI (Environment variables / Groups):
+        # - CM_KEYSTORE_PASSWORD
+        # - CM_KEY_ALIAS
+        # - CM_KEY_PASSWORD
+        # Secure file upload (keystore): upload as `upload.jks` (or change KEYSTORE_FILE below).
+        KEYSTORE_FILE: upload.jks
+    scripts:
+      - name: Install dependencies (npm ci)
+        script: |
+          cd "$APP_DIR"
+          npm ci
+      - name: Expo prebuild (android)
+        script: |
+          cd "$APP_DIR"
+          rm -rf android ios
+          npx expo prebuild --platform android --clean
+      - name: Android bundleRelease (AAB)
+        script: |
+          cd "$APP_DIR/android"
+          KEYSTORE_PATH=""
+          for p in \
+            "$CM_BUILD_DIR/$KEYSTORE_FILE" \
+            "${CM_SECURE_FILES_PATH:-}/$KEYSTORE_FILE" \
+            "${CM_KEYSTORE_PATH:-}" \
+            ; do
+            if [ -n "$p" ] && [ -f "$p" ]; then KEYSTORE_PATH="$p"; break; fi
+          done
+          test -n "$KEYSTORE_PATH" || (echo "Missing keystore file (expected $KEYSTORE_FILE in CM_BUILD_DIR/CM_SECURE_FILES_PATH or CM_KEYSTORE_PATH)" && exit 2)
+          ./gradlew --no-daemon --max-workers=1 :app:bundleRelease \
+            -Pandroid.injected.signing.store.file="$KEYSTORE_PATH" \
+            -Pandroid.injected.signing.store.password="$CM_KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$CM_KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$CM_KEY_PASSWORD"
+      - name: Verify + SHA256
+        script: |
+          cd "$APP_DIR/android"
+          AAB="$(ls -1 app/build/outputs/bundle/release/*.aab | head -n 1 || true)"
+          test -n "$AAB" || (echo "AAB not found" && exit 3)
+          echo "AAB=$AAB"
+          jarsigner -verify -verbose -certs "$AAB" || exit 4
+          sha256sum "$AAB" | tee "$AAB.sha256.txt"
+    artifacts:
+      - android/app/build/outputs/bundle/release/*.aab
+      - android/app/build/outputs/bundle/release/*.sha256.txt
+      - android/app/build/outputs/mapping/release/mapping.txt
+      - android/app/build/reports/**/*
+
