@@ -149,6 +149,13 @@ workflows:
             exit 8
           }
           echo "$CERT_INFO" | grep -E "SHA1:|SHA256:" || true
+          # Export upload certificate for Play Console "Upload key reset" (no secrets inside).
+          # Even if the build fails later (e.g. SHA1 guard), this PEM artifact lets us complete reset without local tools.
+          keytool -exportcert -rfc \
+            -alias "$KEY_ALIAS" \
+            -keystore "$KEYSTORE_PATH" \
+            -storepass "$CM_KEYSTORE_PASSWORD" \
+            -file "$CM_BUILD_DIR/guardian_upload_cert.pem" 2>/dev/null || true
           # Fail-fast guard: ensure we are signing with the upload certificate Play expects for guardian.
           if [ -n "${EXPECTED_UPLOAD_CERT_SHA1:-}" ]; then
             FOUND_SHA1="$(echo "$CERT_INFO" | grep -E "SHA1:" | head -n 1 | sed -E 's/.*SHA1:[[:space:]]*//')"
@@ -200,6 +207,7 @@ workflows:
     artifacts:
       - kakao_key_hash.txt
       - kakao_key_hash_*.txt
+      - guardian_upload_cert.pem
       - android/app/build/outputs/bundle/release/*.aab
       - android/app/build/outputs/bundle/release/*.sha256.txt
       - android/app/build/outputs/mapping/release/mapping.txt
