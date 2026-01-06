@@ -31,15 +31,35 @@ workflows:
       - name: Android bundleRelease (AAB)
         script: |
           cd "$APP_DIR/android"
+          # Resolve keystore file path robustly (Codemagic can expose it via different mechanisms).
           KEYSTORE_PATH=""
-          for p in \
-            "$CM_BUILD_DIR/$KEYSTORE_FILE" \
-            "${CM_SECURE_FILES_PATH:-}/$KEYSTORE_FILE" \
-            "${CM_KEYSTORE_PATH:-}" \
-            ; do
-            if [ -n "$p" ] && [ -f "$p" ]; then KEYSTORE_PATH="$p"; break; fi
-          done
-          test -n "$KEYSTORE_PATH" || (echo "Missing keystore file (expected $KEYSTORE_FILE in CM_BUILD_DIR/CM_SECURE_FILES_PATH or CM_KEYSTORE_PATH)" && exit 2)
+
+          # 1) Codemagic Android keystore integration (preferred)
+          if [ -n "${CM_KEYSTORE_PATH:-}" ] && [ -f "${CM_KEYSTORE_PATH:-}" ]; then
+            KEYSTORE_PATH="${CM_KEYSTORE_PATH:-}"
+          fi
+
+          # 2) Secure files
+          if [ -z "$KEYSTORE_PATH" ] && [ -n "${CM_SECURE_FILES_PATH:-}" ] && [ -f "${CM_SECURE_FILES_PATH:-}/$KEYSTORE_FILE" ]; then
+            KEYSTORE_PATH="${CM_SECURE_FILES_PATH:-}/$KEYSTORE_FILE"
+          fi
+
+          # 3) Build dir (if user uploaded as a generic file)
+          if [ -z "$KEYSTORE_PATH" ] && [ -f "$CM_BUILD_DIR/$KEYSTORE_FILE" ]; then
+            KEYSTORE_PATH="$CM_BUILD_DIR/$KEYSTORE_FILE"
+          fi
+
+          # 4) Fallback: find any .jks under secure files / home
+          if [ -z "$KEYSTORE_PATH" ] && [ -n "${CM_SECURE_FILES_PATH:-}" ] && [ -d "${CM_SECURE_FILES_PATH:-}" ]; then
+            KEYSTORE_PATH="$(find "$CM_SECURE_FILES_PATH" -maxdepth 2 -type f -name '*.jks' 2>/dev/null | head -n 1 || true)"
+          fi
+          if [ -z "$KEYSTORE_PATH" ]; then
+            KEYSTORE_PATH="$(find "$HOME" -maxdepth 5 -type f -name '*.jks' 2>/dev/null | head -n 1 || true)"
+          fi
+
+          test -n "$KEYSTORE_PATH" && test -f "$KEYSTORE_PATH" || (echo "Keystore file not found. Upload a .jks (Android keystore integration or Secure files) and ensure CM_KEYSTORE_PASSWORD is set." && exit 2)
+          echo "KEYSTORE_PATH=$KEYSTORE_PATH"
+          ls -la "$KEYSTORE_PATH" || true
 
           # Auto-detect alias to avoid manual mistakes (works when keystore has a single entry).
           KEY_ALIAS="${CM_KEY_ALIAS:-}"
