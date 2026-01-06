@@ -314,9 +314,9 @@ workflows:
           KEY_PASS="${CM_KEY_PASSWORD:-$CM_KEYSTORE_PASSWORD}"
 
           echo "=== SIGNING_INFO (guardian) ==="
-          PKG="$(node -p "require('../app.json').expo.android.package")"
+          PKG="$(node -p 'require(\"../app.json\").expo.android.package')"
           echo "package=$PKG"
-          echo "versionCode=$(node -p "require('../app.json').expo.android.versionCode")"
+          echo "versionCode=$(node -p 'require(\"../app.json\").expo.android.versionCode')"
           echo "KEY_ALIAS=$KEY_ALIAS"
           CERT_INFO="$(keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" 2>&1)" || {
             echo "Failed to read cert details (wrong password/alias?)"
@@ -379,10 +379,75 @@ workflows:
           echo "AAB=$AAB"
           jarsigner -verify -verbose -certs "$AAB" || exit 4
           sha256sum "$AAB" | tee "$AAB.sha256.txt"
+      - name: Build universal APK from AAB (bundletool)
+        script: |
+          cd "$APP_DIR/android"
+          AAB="$(ls -1 app/build/outputs/bundle/release/*.aab | head -n 1 || true)"
+          if [ -z "$AAB" ]; then
+            echo "AAB not found"
+            exit 3
+          fi
+
+          # Resolve keystore path + alias again (keep this step self-contained).
+          KEYSTORE_PATH=""
+          if [ -n "${CM_KEYSTORE_PATH:-}" ] && [ -f "${CM_KEYSTORE_PATH:-}" ]; then KEYSTORE_PATH="${CM_KEYSTORE_PATH:-}"; fi
+          if [ -z "$KEYSTORE_PATH" ] && [ -n "${CM_KEYSTORE_PATH:-}" ] && [ -d "${CM_KEYSTORE_PATH:-}" ]; then
+            if [ -n "${KEYSTORE_FILE:-}" ] && [ -f "${CM_KEYSTORE_PATH:-}/$KEYSTORE_FILE" ]; then
+              KEYSTORE_PATH="${CM_KEYSTORE_PATH:-}/$KEYSTORE_FILE"
+            else
+              KEYSTORE_PATH="$(find "${CM_KEYSTORE_PATH:-}" -maxdepth 2 -type f -name '*.jks' 2>/dev/null | head -n 1 || true)"
+            fi
+          fi
+          if [ -z "$KEYSTORE_PATH" ] && [ -n "${CM_SECURE_FILES_PATH:-}" ] && [ -f "${CM_SECURE_FILES_PATH:-}/$KEYSTORE_FILE" ]; then
+            KEYSTORE_PATH="${CM_SECURE_FILES_PATH:-}/$KEYSTORE_FILE"
+          fi
+          if [ -z "$KEYSTORE_PATH" ] && [ -f "$CM_BUILD_DIR/$KEYSTORE_FILE" ]; then
+            KEYSTORE_PATH="$CM_BUILD_DIR/$KEYSTORE_FILE"
+          fi
+          if [ -z "$KEYSTORE_PATH" ] || [ ! -f "$KEYSTORE_PATH" ]; then
+            echo "Keystore file not found for bundletool signing"
+            exit 2
+          fi
+          if [ -z "${CM_KEYSTORE_PASSWORD:-}" ]; then
+            echo "Missing CM_KEYSTORE_PASSWORD"
+            exit 2
+          fi
+          KEYTOOL_LIST="$(keytool -list -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" 2>&1)" || exit 8
+          KEY_ALIAS_BT="$(echo "$KEYTOOL_LIST" | awk -F, 'NF>=1 {gsub(/^[ \t]+|[ \t]+$/, "", $1); if ($1!="" && $1!~/(Keystore type|Keystore provider)/) {print $1; exit}}')"
+          if [ -z "$KEY_ALIAS_BT" ]; then
+            echo "Failed to detect key alias"
+            exit 2
+          fi
+          KEY_PASS="${CM_KEY_PASSWORD:-$CM_KEYSTORE_PASSWORD}"
+
+          BUNDLETOOL_VERSION="1.16.0"
+          JAR="$CM_BUILD_DIR/bundletool-all.jar"
+          if [ ! -f "$JAR" ]; then
+            curl -fsSL -o "$JAR" "https://github.com/google/bundletool/releases/download/${BUNDLETOOL_VERSION}/bundletool-all-${BUNDLETOOL_VERSION}.jar"
+          fi
+
+          APKS="$CM_BUILD_DIR/app-universal.apks"
+          APK="$CM_BUILD_DIR/app-universal.apk"
+          java -jar "$JAR" build-apks \
+            --bundle="$AAB" \
+            --output="$APKS" \
+            --mode=universal \
+            --ks="$KEYSTORE_PATH" \
+            --ks-pass="pass:$CM_KEYSTORE_PASSWORD" \
+            --ks-key-alias="$KEY_ALIAS_BT" \
+            --key-pass="pass:$KEY_PASS" \
+            --overwrite
+          unzip -p "$APKS" universal.apk > "$APK"
+          ls -la "$APK" "$APKS" || true
+          jarsigner -verify -verbose -certs "$APK" || exit 4
+          sha256sum "$APK" | tee "$APK.sha256.txt"
     artifacts:
       - kakao_key_hash.txt
       - kakao_key_hash_*.txt
       - guardian_upload_cert.pem
+      - app-universal.apk
+      - app-universal.apk.sha256.txt
+      - app-universal.apks
       - android/app/build/outputs/bundle/release/*.aab
       - android/app/build/outputs/bundle/release/*.sha256.txt
       - android/app/build/outputs/mapping/release/mapping.txt
@@ -392,4 +457,125 @@ workflows:
         credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS
         track: internal
         submit_as_draft: true
+
+  android_guardian_aab_universal_apk_test:
+    name: guardian-aab-universal-apk-test
+    max_build_duration: 120
+    cache:
+      cache_paths:
+        - $HOME/.gradle/caches
+        - $HOME/.gradle/wrapper
+        - $HOME/.npm
+        - $HOME/.cache/yarn
+        - $HOME/.cache/metro
+        - node_modules
+    environment:
+      node: 20.19.4
+      java: 17
+      android_signing:
+        - guardian-upload
+      groups:
+        - dev
+      vars:
+        APP_DIR: .
+        NODE_ENV: "production"
+        # IMPORTANT: do NOT enforce Play expected SHA1 here. This workflow is for device testing while Play reset is pending.
+        EXPECTED_UPLOAD_CERT_SHA1: ""
+        EXPO_PUBLIC_API_URL: "http://api.dongdong.io:3000/api/v1"
+        EXPO_PUBLIC_WEBVIEW_URL: "https://guardian.dongdong.kr"
+        EXPO_PUBLIC_KAKAO_APP_KEY: "47bc9c4a41a6efc98804915332fbc7e8"
+        KAKAO_APP_KEY: "47bc9c4a41a6efc98804915332fbc7e8"
+        KEYSTORE_FILE: guardian-upload.jks
+    scripts:
+      - name: Install dependencies (npm ci)
+        script: |
+          cd "$APP_DIR"
+          export npm_config_production=false
+          npm ci
+      - name: Set Android versionCode (CI monotonic)
+        script: |
+          cd "$APP_DIR"
+          node -e "
+            const fs=require('fs');
+            const p='./app.json';
+            const j=JSON.parse(fs.readFileSync(p,'utf8'));
+            const nowSec=Math.floor(Date.now()/1000);
+            const bn=Number(process.env.CM_BUILD_NUMBER||0);
+            const id=String(process.env.CM_BUILD_ID||process.env.CM_BUILD_RUN_ID||process.env.CM_BUILD_UUID||'');
+            const hash=(s)=>{let h=0; for (let i=0;i<s.length;i++) h=(h*31 + s.charCodeAt(i))>>>0; return h;};
+            const offset=(id ? (hash(id)%997)+1 : (Number.isFinite(bn)&&bn>0 ? (bn%997)+1 : 1));
+            const vc=nowSec + offset;
+            j.expo=j.expo||{};
+            j.expo.android=j.expo.android||{};
+            j.expo.android.versionCode=vc;
+            fs.writeFileSync(p, JSON.stringify(j,null,2)+'\\n');
+            console.log('[ci] android.versionCode='+vc);
+          "
+      - name: Expo prebuild (android)
+        script: |
+          cd "$APP_DIR"
+          rm -rf android ios
+          npx expo prebuild --platform android --clean
+      - name: Android bundleRelease (AAB)
+        script: |
+          cd "$APP_DIR/android"
+          ./gradlew --no-daemon --build-cache --max-workers=2 :app:bundleRelease
+      - name: Verify + SHA256
+        script: |
+          cd "$APP_DIR/android"
+          AAB="$(ls -1 app/build/outputs/bundle/release/*.aab | head -n 1 || true)"
+          if [ -z "$AAB" ]; then
+            echo "AAB not found"
+            exit 3
+          fi
+          echo "AAB=$AAB"
+          jarsigner -verify -verbose -certs "$AAB" || exit 4
+          sha256sum "$AAB" | tee "$AAB.sha256.txt"
+      - name: Build universal APK from AAB (bundletool)
+        script: |
+          cd "$APP_DIR/android"
+          AAB="$(ls -1 app/build/outputs/bundle/release/*.aab | head -n 1 || true)"
+          if [ -z "$AAB" ]; then
+            echo "AAB not found"
+            exit 3
+          fi
+          KEYSTORE_PATH="${CM_KEYSTORE_PATH:-}"
+          if [ -z "$KEYSTORE_PATH" ] || [ ! -f "$KEYSTORE_PATH" ]; then
+            echo "Missing CM_KEYSTORE_PATH"
+            exit 2
+          fi
+          if [ -z "${CM_KEYSTORE_PASSWORD:-}" ]; then
+            echo "Missing CM_KEYSTORE_PASSWORD"
+            exit 2
+          fi
+          KEYTOOL_LIST="$(keytool -list -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" 2>&1)" || exit 8
+          KEY_ALIAS_BT="$(echo "$KEYTOOL_LIST" | awk -F, 'NF>=1 {gsub(/^[ \t]+|[ \t]+$/, "", $1); if ($1!="" && $1!~/(Keystore type|Keystore provider)/) {print $1; exit}}')"
+          KEY_PASS="${CM_KEY_PASSWORD:-$CM_KEYSTORE_PASSWORD}"
+
+          BUNDLETOOL_VERSION="1.16.0"
+          JAR="$CM_BUILD_DIR/bundletool-all.jar"
+          if [ ! -f "$JAR" ]; then
+            curl -fsSL -o "$JAR" "https://github.com/google/bundletool/releases/download/${BUNDLETOOL_VERSION}/bundletool-all-${BUNDLETOOL_VERSION}.jar"
+          fi
+          APKS="$CM_BUILD_DIR/app-universal.apks"
+          APK="$CM_BUILD_DIR/app-universal.apk"
+          java -jar "$JAR" build-apks \
+            --bundle="$AAB" \
+            --output="$APKS" \
+            --mode=universal \
+            --ks="$KEYSTORE_PATH" \
+            --ks-pass="pass:$CM_KEYSTORE_PASSWORD" \
+            --ks-key-alias="$KEY_ALIAS_BT" \
+            --key-pass="pass:$KEY_PASS" \
+            --overwrite
+          unzip -p "$APKS" universal.apk > "$APK"
+          jarsigner -verify -verbose -certs "$APK" || exit 4
+          sha256sum "$APK" | tee "$APK.sha256.txt"
+    artifacts:
+      - app-universal.apk
+      - app-universal.apk.sha256.txt
+      - app-universal.apks
+      - android/app/build/outputs/bundle/release/*.aab
+      - android/app/build/outputs/bundle/release/*.sha256.txt
+      - android/app/build/reports/**/*
 
