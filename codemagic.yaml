@@ -68,10 +68,24 @@ workflows:
           cd "$APP_DIR/android"
           # Resolve keystore file path robustly (Codemagic can expose it via different mechanisms).
           KEYSTORE_PATH=""
+          echo "KEYSTORE_FILE=${KEYSTORE_FILE:-}"
+          echo "CM_KEYSTORE_PATH=${CM_KEYSTORE_PATH:-}"
+          echo "CM_SECURE_FILES_PATH=${CM_SECURE_FILES_PATH:-}"
+          echo "CM_BUILD_DIR=${CM_BUILD_DIR:-}"
 
           # 1) Codemagic Android keystore integration (preferred)
           if [ -n "${CM_KEYSTORE_PATH:-}" ] && [ -f "${CM_KEYSTORE_PATH:-}" ]; then
             KEYSTORE_PATH="${CM_KEYSTORE_PATH:-}"
+          fi
+          # Some setups expose CM_KEYSTORE_PATH as a directory. If so, locate the expected KEYSTORE_FILE inside.
+          if [ -z "$KEYSTORE_PATH" ] && [ -n "${CM_KEYSTORE_PATH:-}" ] && [ -d "${CM_KEYSTORE_PATH:-}" ]; then
+            echo "CM_KEYSTORE_PATH is a directory; listing:"
+            ls -la "${CM_KEYSTORE_PATH:-}" || true
+            if [ -n "${KEYSTORE_FILE:-}" ] && [ -f "${CM_KEYSTORE_PATH:-}/$KEYSTORE_FILE" ]; then
+              KEYSTORE_PATH="${CM_KEYSTORE_PATH:-}/$KEYSTORE_FILE"
+            else
+              KEYSTORE_PATH="$(find "${CM_KEYSTORE_PATH:-}" -maxdepth 2 -type f -name '*.jks' 2>/dev/null | head -n 1 || true)"
+            fi
           fi
 
           # 2) Secure files
@@ -84,25 +98,31 @@ workflows:
             KEYSTORE_PATH="$CM_BUILD_DIR/$KEYSTORE_FILE"
           fi
 
-          # 4) Fallback: find any .jks under secure files / home
-          if [ -z "$KEYSTORE_PATH" ] && [ -n "${CM_SECURE_FILES_PATH:-}" ] && [ -d "${CM_SECURE_FILES_PATH:-}" ]; then
-            KEYSTORE_PATH="$(find "$CM_SECURE_FILES_PATH" -maxdepth 2 -type f -name '*.jks' 2>/dev/null | head -n 1 || true)"
-          fi
-          if [ -z "$KEYSTORE_PATH" ]; then
-            KEYSTORE_PATH="$(find "$HOME" -maxdepth 5 -type f -name '*.jks' 2>/dev/null | head -n 1 || true)"
-          fi
-
           if [ -z "$KEYSTORE_PATH" ] || [ ! -f "$KEYSTORE_PATH" ]; then
-            echo "Keystore file not found. Upload a .jks (Android keystore integration or Secure files) and ensure CM_KEYSTORE_PASSWORD is set."
+            echo "Keystore file not found for guardian."
+            echo "Fix: Codemagic > Code signing identities > Android keystores"
+            echo " - Add keystore reference name: guardian-upload"
+            echo " - Upload file: guardian-upload.jks"
+            echo " - Ensure this workflow attaches android_signing: guardian-upload"
             exit 2
           fi
           echo "KEYSTORE_PATH=$KEYSTORE_PATH"
           ls -la "$KEYSTORE_PATH" || true
 
+          if [ -z "${CM_KEYSTORE_PASSWORD:-}" ]; then
+            echo "Missing CM_KEYSTORE_PASSWORD. Set it via Codemagic keystore identity or env vars."
+            exit 2
+          fi
+
           # Auto-detect alias to avoid manual mistakes (works when keystore has a single entry).
           KEY_ALIAS="${CM_KEY_ALIAS:-}"
           if [ -z "$KEY_ALIAS" ]; then
-            KEY_ALIAS="$(keytool -list -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" 2>/dev/null | awk -F, 'NF>=1 {gsub(/^[ \t]+|[ \t]+$/, "", $1); if ($1!="") {print $1; exit}}')"
+            KEYTOOL_LIST="$(keytool -list -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" 2>&1)" || {
+              echo "Failed to read keystore with CM_KEYSTORE_PASSWORD (wrong password?)"
+              echo "$KEYTOOL_LIST" | head -n 20
+              exit 8
+            }
+            KEY_ALIAS="$(echo "$KEYTOOL_LIST" | awk -F, 'NF>=1 {gsub(/^[ \t]+|[ \t]+$/, "", $1); if ($1!="" && $1!~/(Keystore type|Keystore provider)/) {print $1; exit}}')"
           fi
           if [ -z "$KEY_ALIAS" ]; then
             echo "Failed to detect key alias. Set CM_KEY_ALIAS explicitly."
@@ -116,12 +136,20 @@ workflows:
           echo "package=$PKG"
           echo "versionCode=$(node -e \"console.log(require('../app.json').expo.android.versionCode)\")"
           echo "KEY_ALIAS=$KEY_ALIAS"
-          CERT_INFO="$(keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" 2>/dev/null || true)"
+          CERT_INFO="$(keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" 2>&1)" || {
+            echo "Failed to read cert details (wrong password/alias?)"
+            echo "$CERT_INFO" | head -n 40
+            exit 8
+          }
           echo "$CERT_INFO" | grep -E "SHA1:|SHA256:" || true
           # Fail-fast guard: ensure we are signing with the upload certificate Play expects for guardian.
           if [ -n "${EXPECTED_UPLOAD_CERT_SHA1:-}" ]; then
             FOUND_SHA1="$(echo "$CERT_INFO" | grep -E "SHA1:" | head -n 1 | sed -E 's/.*SHA1:[[:space:]]*//')"
-            if [ -n "$FOUND_SHA1" ] && [ "$FOUND_SHA1" != "$EXPECTED_UPLOAD_CERT_SHA1" ]; then
+            if [ -z "$FOUND_SHA1" ]; then
+              echo "FATAL: Could not determine signing cert SHA1 from keytool output."
+              exit 9
+            fi
+            if [ "$FOUND_SHA1" != "$EXPECTED_UPLOAD_CERT_SHA1" ]; then
               echo "FATAL: Wrong signing cert for guardian."
               echo "found_sha1=$FOUND_SHA1"
               echo "expected_sha1=$EXPECTED_UPLOAD_CERT_SHA1"
