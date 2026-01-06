@@ -2,6 +2,14 @@ workflows:
   guardian_export_upload_cert:
     name: guardian-export-upload-cert
     max_build_duration: 30
+    cache:
+      cache_paths:
+        - $HOME/.gradle/caches
+        - $HOME/.gradle/wrapper
+        - $HOME/.npm
+        - $HOME/.cache/yarn
+        - $HOME/.cache/metro
+        - node_modules
     environment:
       java: 17
       android_signing:
@@ -79,6 +87,14 @@ workflows:
   android_guardian_aab:
     name: guardian-android-aab
     max_build_duration: 120
+    cache:
+      cache_paths:
+        - $HOME/.gradle/caches
+        - $HOME/.gradle/wrapper
+        - $HOME/.npm
+        - $HOME/.cache/yarn
+        - $HOME/.cache/metro
+        - node_modules
     environment:
       node: 20.19.4
       java: 17
@@ -265,7 +281,7 @@ workflows:
             fi
           fi
 
-          ./gradlew --no-daemon --max-workers=1 :app:bundleRelease \
+          ./gradlew --no-daemon --build-cache --max-workers=2 :app:bundleRelease \
             -Pandroid.injected.signing.store.file="$KEYSTORE_PATH" \
             -Pandroid.injected.signing.store.password="$CM_KEYSTORE_PASSWORD" \
             -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
