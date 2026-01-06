@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import Constants from "expo-constants";
 
 import { clearDevLogs, DevLogEntry, getDevLogs, subscribeDevLogs } from "./devlog";
+import { config } from "@/shared/config";
 
 function fmtTime(ts: number): string {
   try {
@@ -23,6 +25,24 @@ export function DevOverlay() {
   const enabled = isEnabled();
   const [open, setOpen] = useState(false);
   const [logs, setLogs] = useState<DevLogEntry[]>(enabled ? getDevLogs() : []);
+
+  const runtimeInfo = useMemo(() => {
+    const pkg =
+      (Constants as any)?.expoConfig?.android?.package ||
+      (Constants as any)?.manifest?.android?.package ||
+      "";
+    const api = (() => {
+      try {
+        return config.API_URL;
+      } catch {
+        return process.env.EXPO_PUBLIC_API_URL || "";
+      }
+    })();
+    const kakao = process.env.EXPO_PUBLIC_KAKAO_APP_KEY || process.env.KAKAO_APP_KEY || "";
+    const webview = process.env.EXPO_PUBLIC_WEBVIEW_URL || "";
+    const devtools = process.env.EXPO_PUBLIC_DEVTOOLS || (__DEV__ ? "dev" : "");
+    return { pkg, api, kakao, webview, devtools };
+  }, []);
 
   useEffect(() => {
     if (!enabled) return;
@@ -65,6 +85,16 @@ export function DevOverlay() {
                 <Text style={styles.hbtnText}>Close</Text>
               </Pressable>
             </View>
+          </View>
+
+          <View style={styles.infoBox}>
+            <Text style={styles.infoText}>package: {runtimeInfo.pkg || "(unknown)"}</Text>
+            <Text style={styles.infoText}>api: {runtimeInfo.api || "(unknown)"}</Text>
+            <Text style={styles.infoText}>webview: {runtimeInfo.webview || "(n/a)"}</Text>
+            <Text style={styles.infoText}>
+              kakao_app_key: {runtimeInfo.kakao || "(missing)"}
+            </Text>
+            <Text style={styles.infoText}>devtools: {runtimeInfo.devtools || "(off)"}</Text>
           </View>
 
           <View style={styles.legend}>
@@ -144,6 +174,15 @@ const styles = StyleSheet.create({
     borderBottomColor: "rgba(255,255,255,0.08)",
   },
   legendText: { color: "rgba(255,255,255,0.7)", fontSize: 12, lineHeight: 16 },
+  infoBox: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.08)",
+    gap: 4,
+  },
+  infoText: { color: "rgba(255,255,255,0.85)", fontSize: 12, lineHeight: 16 },
   body: { flex: 1 },
   bodyContent: { padding: 16, gap: 10 },
   row: {
