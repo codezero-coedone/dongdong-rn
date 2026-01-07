@@ -1,8 +1,9 @@
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   Pressable,
   StyleSheet,
   Text,
@@ -10,6 +11,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuthStore } from "@/features/auth";
+import Carousel from "react-native-reanimated-carousel";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 
 // 온보딩 데이터 타입
 interface OnboardingItem {
@@ -73,17 +76,30 @@ function SocialLoginButton({
 export default function LoginScreen() {
   const router = useRouter();
   const [step, setStep] = useState(0);
+  const carouselRef = useRef<any>(null);
   const socialLogin = useAuthStore((s) => s.socialLogin);
   const isLoading = useAuthStore((s) => s.isLoading);
 
-  const currentItem = ONBOARDING_DATA[step];
   const isLastStep = step === ONBOARDING_DATA.length - 1;
 
-  const handleNext = () => {
-    if (step < ONBOARDING_DATA.length - 1) {
-      setStep(step + 1);
-    }
+  const width = Dimensions.get("window").width;
+
+  const goNext = () => {
+    if (step >= ONBOARDING_DATA.length - 1) return;
+    const next = step + 1;
+    carouselRef.current?.scrollTo?.({ index: next, animated: true });
+    setStep(next);
   };
+
+  const tapGesture = useMemo(
+    () =>
+      Gesture.Tap().onEnd(() => {
+        // UX: tap anywhere to proceed (in addition to swipe).
+        goNext();
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [step],
+  );
 
   const handleSocialLogin = async () => {
     try {
@@ -107,40 +123,48 @@ export default function LoginScreen() {
         <Text style={styles.headerTitle}>로그인</Text>
       </View>
 
-      <View style={styles.body}>
-        {/* UX: 이전 슬라이드에서는 화면 탭으로도 다음으로 진행 */}
-        {!isLastStep && (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="다음"
-            onPress={handleNext}
-            style={StyleSheet.absoluteFill}
-          />
-        )}
-        {/* 텍스트 영역 */}
-        <View style={styles.hero}>
-          <Text style={styles.heroTitle}>
-            {currentItem.title}
-          </Text>
-          <Text style={styles.heroDesc}>
-            {currentItem.description}
-          </Text>
-        </View>
+      <GestureDetector gesture={tapGesture}>
+        <View style={styles.body}>
+          <Carousel
+            ref={carouselRef}
+            width={width}
+            height={520}
+            data={ONBOARDING_DATA}
+            loop={false}
+            pagingEnabled
+            onSnapToItem={(idx: number) => setStep(idx)}
+            renderItem={({ item }: { item: OnboardingItem }) => (
+              <View style={styles.slide}>
+                {/* 텍스트 영역 */}
+                <View style={styles.hero}>
+                  <Text style={styles.heroTitle}>{item.title}</Text>
+                  <Text style={styles.heroDesc}>{item.description}</Text>
+                </View>
 
-        {/* 이미지 영역 (Placeholder) */}
-        <View style={styles.imageArea}>
-          <View style={styles.imagePlaceholder} />
+                {/* 이미지 영역 (Placeholder) */}
+                <View style={styles.imageArea}>
+                  <View style={styles.imagePlaceholder} />
+                </View>
+              </View>
+            )}
+          />
         </View>
-      </View>
+      </GestureDetector>
 
       {/* 하단 버튼 영역 */}
       <View style={styles.footer}>
-        {isLastStep ? (
-          <View>
-            <SocialLoginButton
-              provider="kakao"
-              onPress={handleSocialLogin}
+        <View style={styles.dotsRow} pointerEvents="none">
+          {ONBOARDING_DATA.map((_, i) => (
+            <View
+              key={String(i)}
+              style={[styles.dot, i === step ? styles.dotActive : styles.dotInactive]}
             />
+          ))}
+        </View>
+
+        {isLastStep && (
+          <View style={{ width: "100%" }}>
+            <SocialLoginButton provider="kakao" onPress={handleSocialLogin} />
             {isLoading && (
               <View style={styles.loadingRow}>
                 <ActivityIndicator />
@@ -148,13 +172,6 @@ export default function LoginScreen() {
               </View>
             )}
           </View>
-        ) : (
-          <Pressable
-            onPress={handleNext}
-            style={styles.nextBtn}
-          >
-            <Text style={styles.nextBtnText}>다음</Text>
-          </Pressable>
         )}
       </View>
     </SafeAreaView>
@@ -170,7 +187,8 @@ const styles = StyleSheet.create({
     borderBottomColor: "#F3F4F6",
   },
   headerTitle: { fontSize: 16, fontWeight: "600", color: "#111827" },
-  body: { flex: 1, paddingHorizontal: 24, paddingTop: 36 },
+  body: { flex: 1 },
+  slide: { flex: 1, paddingHorizontal: 24, paddingTop: 36 },
   hero: { alignItems: "center", marginBottom: 28 },
   heroTitle: {
     fontSize: 24,
@@ -192,15 +210,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#E5E7EB",
     borderRadius: 14,
   },
-  footer: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 28 },
-  nextBtn: {
-    height: 56,
-    backgroundColor: "#3B82F6",
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  nextBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  footer: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 28, gap: 14 },
+  dotsRow: { flexDirection: "row", justifyContent: "center", gap: 8 },
+  dot: { width: 7, height: 7, borderRadius: 999 },
+  dotActive: { backgroundColor: "#111827" },
+  dotInactive: { backgroundColor: "#D1D5DB" },
   socialBtn: {
     height: 56,
     borderRadius: 14,
