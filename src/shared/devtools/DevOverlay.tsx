@@ -52,10 +52,9 @@ export function DevOverlay() {
 
   const last = useMemo(() => logs[logs.length - 1] ?? null, [logs]);
   const lastBadge = useMemo(() => {
-    if (!last) return "DBG";
-    const status = (last.meta as any)?.status;
-    if (typeof status === "number") return String(status);
-    return last.level === "error" ? "ERR" : "DBG";
+    // UX: 화면 위 숫자(200/401 등) 노출은 거슬리므로 배지는 항상 DBG만 표시.
+    // 상세 status 코드는 패널(DEV TRACE) 내부 로그에서만 확인한다.
+    return "DBG";
   }, [last]);
 
   if (!enabled) return null;

@@ -47,6 +47,17 @@ export function WebViewContainer({
     const user = useAuthStore((state) => state.user);
     const DEVTOOLS_ENABLED = Boolean(__DEV__ || process.env.EXPO_PUBLIC_DEVTOOLS === '1');
 
+    // Some builds may ship without NativeWind/className wiring.
+    // Always keep WebView container layout deterministic with explicit RN styles.
+    const containerStyle = { flex: 1 } as const;
+    const centerStyle = {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#fff',
+        paddingHorizontal: 24,
+    } as const;
+
     // ==========================================================
     // HARD GATE: WebView must never mount before RN owns an accessToken.
     // - Prevents any web auth(/login) exposure inside WebView.
@@ -84,28 +95,15 @@ export function WebViewContainer({
     const path = initialPath.startsWith('/') ? initialPath : `/${initialPath}`;
     const url = `${base}${path}`;
 
-    if (DEVTOOLS_ENABLED) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/c4a96aae-788b-4004-a158-5d8f250f832b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'src/features/webview/ui/WebViewContainer.tsx:init',message:'webview url computed',data:{base,initialPath,path,url,hasToken:Boolean(token)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{});
-        // #endregion agent log
+    useEffect(() => {
+        if (!DEVTOOLS_ENABLED) return;
         devlog({
             scope: 'SYS',
             level: 'info',
             message: `webview: mount url=${url}`,
             meta: { base, path, hasToken: Boolean(token) },
         });
-    }
-
-    // Some builds may ship without NativeWind/className wiring.
-    // Always keep WebView container layout deterministic with explicit RN styles.
-    const containerStyle = { flex: 1 } as const;
-    const centerStyle = {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#fff',
-        paddingHorizontal: 24,
-    } as const;
+    }, [DEVTOOLS_ENABLED, url, base, path, token]);
 
     // ==========================================================
     // Token pre-injection (deterministic)
@@ -117,6 +115,69 @@ export function WebViewContainer({
         try {
           localStorage.setItem('accessToken', ${JSON.stringify(token)});
           window.dispatchEvent(new Event('dd-auth-token'));
+        } catch (e) {}
+      })();
+      (function() {
+        // DEV only: bridge web fetch/XHR errors to RN DEV TRACE (no body/PII).
+        try {
+          var enabled = ${DEVTOOLS_ENABLED ? 'true' : 'false'};
+          if (!enabled) return;
+          if (window.__ddDevtoolsInstalled) return;
+          window.__ddDevtoolsInstalled = true;
+
+          function post(event, properties) {
+            try {
+              var msg = { type: 'ANALYTICS', payload: { event: event, properties: properties || {} }, timestamp: Date.now() };
+              if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
+                window.ReactNativeWebView.postMessage(JSON.stringify(msg));
+              }
+            } catch (e) {}
+          }
+
+          // fetch hook
+          var _fetch = window.fetch;
+          if (typeof _fetch === 'function') {
+            window.fetch = function(input, init) {
+              var method = (init && init.method) ? String(init.method).toUpperCase() : 'GET';
+              var u = '';
+              try { u = (typeof input === 'string') ? input : (input && input.url) ? String(input.url) : ''; } catch (e) {}
+              post('WEB_FETCH_START', { method: method, url: u });
+              return _fetch.apply(this, arguments).then(function(res) {
+                post('WEB_FETCH', { method: method, url: u, status: res && typeof res.status === 'number' ? res.status : null });
+                return res;
+              }).catch(function(err) {
+                post('WEB_FETCH_ERR', { method: method, url: u, message: String((err && err.message) || err) });
+                throw err;
+              });
+            };
+          }
+
+          // XHR hook
+          var XHR = window.XMLHttpRequest;
+          if (XHR && XHR.prototype) {
+            var _open = XHR.prototype.open;
+            var _send = XHR.prototype.send;
+            XHR.prototype.open = function(method, url) {
+              try { this.__dd = { method: String(method).toUpperCase(), url: String(url) }; } catch (e) {}
+              return _open.apply(this, arguments);
+            };
+            XHR.prototype.send = function() {
+              var self = this;
+              try {
+                var meta = self.__dd || { method: 'GET', url: '' };
+                post('WEB_XHR_START', meta);
+                self.addEventListener('loadend', function() {
+                  try { post('WEB_XHR', { method: meta.method, url: meta.url, status: self.status }); } catch (e) {}
+                });
+              } catch (e) {}
+              return _send.apply(this, arguments);
+            };
+          }
+
+          // runtime errors
+          window.addEventListener('error', function(e) {
+            try { post('WEB_ERROR', { message: e && e.message ? String(e.message) : 'error', source: e && e.filename ? String(e.filename) : '', line: e && e.lineno ? e.lineno : null }); } catch (e2) {}
+          });
         } catch (e) {}
       })();
       true;
@@ -158,7 +219,25 @@ export function WebViewContainer({
                 role: 'guardian',
             });
         }
-    }, [token, user, sendAuthToken, sendUserInfo, setLoading, setReady]);
+
+        // DEV handshake: prove the web runtime is alive + token is visible from WebView side.
+        if (DEVTOOLS_ENABLED) {
+            const probe = `
+        (function() {
+          try {
+            var has = false;
+            try { has = !!(localStorage.getItem('accessToken') || ''); } catch (e) {}
+            var msg = { type: 'READY', payload: { phase: 'loadEnd', href: String(location && location.href || ''), hasToken: has }, timestamp: Date.now() };
+            if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
+              window.ReactNativeWebView.postMessage(JSON.stringify(msg));
+            }
+          } catch (e) {}
+        })();
+        true;
+      `;
+            webViewRef.current?.injectJavaScript(probe);
+        }
+    }, [DEVTOOLS_ENABLED, token, user, sendAuthToken, sendUserInfo, setLoading, setReady, webViewRef]);
 
     // ============================================
     // 네비게이션 상태 업데이트
@@ -185,15 +264,12 @@ export function WebViewContainer({
                     `차단된 이동입니다.\nURL=${request.url}\n\n(로그인/인증 페이지는 RN 네이티브에서만 가능합니다)`,
                 );
                 if (DEVTOOLS_ENABLED) {
-                    // #region agent log
-                    fetch('http://127.0.0.1:7242/ingest/c4a96aae-788b-4004-a158-5d8f250f832b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'src/features/webview/ui/WebViewContainer.tsx:shouldStart',message:'blocked url',data:{url:request.url},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{});
-                    // #endregion agent log
                     devlog({ scope: 'SYS', level: 'warn', message: `webview: blocked url=${request.url}` });
                 }
             }
             return ok;
         },
-        [setError]
+        [DEVTOOLS_ENABLED, setError]
     );
 
     // ============================================
@@ -311,12 +387,32 @@ export function WebViewContainer({
             <WebView
                 ref={webViewRef}
                 source={{ uri: url }}
-                onLoadStart={() => setLoading(true)}
+                onLoadStart={() => {
+                    setLoading(true);
+                    if (DEVTOOLS_ENABLED) devlog({ scope: 'SYS', level: 'info', message: `webview: loadStart url=${url}` });
+                }}
                 onLoadEnd={handleLoadEnd}
                 injectedJavaScriptBeforeContentLoaded={injectedBeforeContentLoaded}
                 onMessage={handleMessage}
                 onNavigationStateChange={handleNavigationStateChange}
                 onShouldStartLoadWithRequest={handleShouldStartLoad}
+                onHttpError={(e: any) => {
+                    const ne = e?.nativeEvent;
+                    const status = ne?.statusCode;
+                    const u = ne?.url;
+                    const isMain = ne?.isMainFrame;
+                    if (DEVTOOLS_ENABLED) {
+                        devlog({
+                            scope: 'SYS',
+                            level: 'error',
+                            message: `webview: httpError ${String(status)} url=${String(u || '')}`,
+                            meta: { status, url: u, isMainFrame: isMain },
+                        });
+                    }
+                    if (typeof status === 'number' && status >= 400 && isMain !== false) {
+                        setError(`WebView HTTP error.\nstatus=${status}\nURL=${String(u || url)}`);
+                    }
+                }}
                 onError={handleError}
                 {...WEBVIEW_CONFIG}
                 style={{ flex: 1 }}

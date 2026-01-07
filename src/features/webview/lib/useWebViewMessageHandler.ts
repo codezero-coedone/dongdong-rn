@@ -7,6 +7,7 @@ import {
     type SharePayload,
     type WebToRNMessage,
 } from '@/shared/types/bridge';
+import { devlog } from '@/shared/devtools/devlog';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useCallback } from 'react';
@@ -71,8 +72,58 @@ export function useWebViewMessageHandler() {
      * 분석 이벤트 (추후 Analytics 서비스 연동)
      */
     const handleAnalytics = useCallback((payload: AnalyticsPayload) => {
-        // TODO: Analytics 서비스 연동
-        console.log('[Analytics]', payload.event, payload.properties);
+        // DEV/QA 관제: WebView 내부 fetch/XHR/에러를 RN DEV TRACE로 승격
+        const enabled = Boolean(__DEV__ || process.env.EXPO_PUBLIC_DEVTOOLS === '1');
+        if (!enabled) return;
+
+        const ev = String(payload?.event || '');
+        const props = (payload?.properties || {}) as Record<string, unknown>;
+
+        const rawUrl = typeof props.url === 'string' ? props.url : '';
+        const method = typeof props.method === 'string' ? props.method : '';
+        const status = typeof props.status === 'number' ? props.status : undefined;
+
+        const shortUrl = (() => {
+            if (!rawUrl) return '';
+            try {
+                // strip domain/query for readability
+                const m = rawUrl.match(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^\/?#]+(\/[^?#]*)?/);
+                return m && m[1] ? m[1] : rawUrl;
+            } catch {
+                return rawUrl;
+            }
+        })();
+
+        if (ev.startsWith('WEB_FETCH') || ev.startsWith('WEB_XHR')) {
+            const msg =
+                status != null
+                    ? `web: ${method} ${shortUrl} → ${status}`
+                    : `web: ${ev} ${method} ${shortUrl}`.trim();
+            devlog({
+                scope: 'API',
+                level: ev.endsWith('_ERR') ? 'error' : 'info',
+                message: msg,
+                meta: { event: ev, ...props },
+            });
+            return;
+        }
+
+        if (ev === 'WEB_ERROR') {
+            devlog({
+                scope: 'SYS',
+                level: 'error',
+                message: 'web: runtime error',
+                meta: props,
+            });
+            return;
+        }
+
+        devlog({
+            scope: 'SYS',
+            level: 'info',
+            message: `web: ${ev || 'ANALYTICS'}`,
+            meta: props,
+        });
     }, []);
 
     /**
@@ -107,7 +158,14 @@ export function useWebViewMessageHandler() {
                         handleAnalytics(message.payload as AnalyticsPayload);
                         break;
                     case 'READY':
-                        console.log('WebView is ready');
+                        if (Boolean(__DEV__ || process.env.EXPO_PUBLIC_DEVTOOLS === '1')) {
+                            devlog({
+                                scope: 'SYS',
+                                level: 'info',
+                                message: 'webview: READY',
+                                meta: (message.payload as any) || {},
+                            });
+                        }
                         break;
                     case 'OPEN_CAMERA':
                     case 'OPEN_GALLERY':
