@@ -1,35 +1,17 @@
-import { Tabs } from 'expo-router';
+import { Stack } from 'expo-router';
 import React from 'react';
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
+/**
+ * Guardian 앱은 "WebView 컨텐츠 앱"이므로 RN 탭 네비게이션을 사용하지 않는다.
+ * - RN 하단탭/Explore가 남아있으면 Web 모달/키보드/하단바가 2중/3중으로 겹치며 UX가 깨진다.
+ * - 단일 진입: /(tabs)/index → WebViewContainer('/')
+ */
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-        }}
-      />
-    </Tabs>
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" />
+      {/* Legacy/unused: keep route file but detach from navigation to avoid duplicate UX surfaces */}
+      <Stack.Screen name="explore" options={{ presentation: 'transparentModal' }} />
+    </Stack>
   );
 }
