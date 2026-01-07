@@ -124,6 +124,11 @@ export function WebViewContainer({
           if (!enabled) return;
           if (window.__ddDevtoolsInstalled) return;
           window.__ddDevtoolsInstalled = true;
+          var __ddRidSeq = 0;
+          function nextRid() {
+            __ddRidSeq = (__ddRidSeq + 1) % 1000000;
+            return String(Date.now()) + '-w' + String(__ddRidSeq);
+          }
 
           function post(event, properties) {
             try {
@@ -138,16 +143,30 @@ export function WebViewContainer({
           var _fetch = window.fetch;
           if (typeof _fetch === 'function') {
             window.fetch = function(input, init) {
+              var rid = nextRid();
               var method = (init && init.method) ? String(init.method).toUpperCase() : 'GET';
               var u = '';
               try { u = (typeof input === 'string') ? input : (input && input.url) ? String(input.url) : ''; } catch (e) {}
               try { u = String(u || '').split('#')[0].split('?')[0]; } catch (e) {}
-              post('WEB_FETCH_START', { method: method, url: u });
+              // Attach rid header (CORS must allow X-DD-Request-Id)
+              try {
+                if (!init) init = {};
+                var h = init.headers || {};
+                if (h && typeof h.append === 'function') {
+                  h.append('X-DD-Request-Id', rid);
+                } else if (Array.isArray(h)) {
+                  h.push(['X-DD-Request-Id', rid]);
+                } else {
+                  h['X-DD-Request-Id'] = rid;
+                }
+                init.headers = h;
+              } catch (e) {}
+              post('WEB_FETCH_START', { rid: rid, method: method, url: u });
               return _fetch.apply(this, arguments).then(function(res) {
-                post('WEB_FETCH', { method: method, url: u, status: res && typeof res.status === 'number' ? res.status : null });
+                post('WEB_FETCH', { rid: rid, method: method, url: u, status: res && typeof res.status === 'number' ? res.status : null });
                 return res;
               }).catch(function(err) {
-                post('WEB_FETCH_ERR', { method: method, url: u, message: String((err && err.message) || err) });
+                post('WEB_FETCH_ERR', { rid: rid, method: method, url: u, message: String((err && err.message) || err) });
                 throw err;
               });
             };
@@ -162,17 +181,18 @@ export function WebViewContainer({
               try {
                 var uu = String(url || '');
                 try { uu = uu.split('#')[0].split('?')[0]; } catch (e2) {}
-                this.__dd = { method: String(method).toUpperCase(), url: uu };
+                this.__dd = { rid: nextRid(), method: String(method).toUpperCase(), url: uu };
               } catch (e) {}
               return _open.apply(this, arguments);
             };
             XHR.prototype.send = function() {
               var self = this;
               try {
-                var meta = self.__dd || { method: 'GET', url: '' };
+                var meta = self.__dd || { rid: nextRid(), method: 'GET', url: '' };
+                try { self.setRequestHeader('X-DD-Request-Id', meta.rid); } catch (e2) {}
                 post('WEB_XHR_START', meta);
                 self.addEventListener('loadend', function() {
-                  try { post('WEB_XHR', { method: meta.method, url: meta.url, status: self.status }); } catch (e) {}
+                  try { post('WEB_XHR', { rid: meta.rid, method: meta.method, url: meta.url, status: self.status }); } catch (e) {}
                 });
               } catch (e) {}
               return _send.apply(this, arguments);

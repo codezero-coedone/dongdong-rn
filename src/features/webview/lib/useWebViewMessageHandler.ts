@@ -82,6 +82,7 @@ export function useWebViewMessageHandler() {
         const rawUrl = typeof props.url === 'string' ? props.url : '';
         const method = typeof props.method === 'string' ? props.method : '';
         const status = typeof props.status === 'number' ? props.status : undefined;
+        const rid = typeof (props as any).rid === 'string' ? String((props as any).rid) : '';
 
         const shortUrl = (() => {
             if (!rawUrl) return '';
@@ -96,8 +97,8 @@ export function useWebViewMessageHandler() {
 
         if (ev.startsWith('WEB_FETCH') || ev.startsWith('WEB_XHR')) {
             const msg = status != null
-                ? `web: ${method} ${shortUrl} → ${status}`
-                : `web: ${ev} ${method} ${shortUrl}`.trim();
+                ? `web: ${rid ? `[rid=${rid}] ` : ''}${method} ${shortUrl} → ${status}`
+                : `web: ${rid ? `[rid=${rid}] ` : ''}${ev} ${method} ${shortUrl}`.trim();
             devlog({
                 scope: 'API',
                 level: ev.endsWith('_ERR') ? 'error' : 'info',
@@ -105,6 +106,7 @@ export function useWebViewMessageHandler() {
                 // PII guard: keep only minimal/safe fields
                 meta: {
                     event: ev,
+                    rid: rid || undefined,
                     method,
                     url: shortUrl,
                     status,
