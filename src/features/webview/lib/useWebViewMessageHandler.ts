@@ -95,15 +95,21 @@ export function useWebViewMessageHandler() {
         })();
 
         if (ev.startsWith('WEB_FETCH') || ev.startsWith('WEB_XHR')) {
-            const msg =
-                status != null
-                    ? `web: ${method} ${shortUrl} → ${status}`
-                    : `web: ${ev} ${method} ${shortUrl}`.trim();
+            const msg = status != null
+                ? `web: ${method} ${shortUrl} → ${status}`
+                : `web: ${ev} ${method} ${shortUrl}`.trim();
             devlog({
                 scope: 'API',
                 level: ev.endsWith('_ERR') ? 'error' : 'info',
                 message: msg,
-                meta: { event: ev, ...props },
+                // PII guard: keep only minimal/safe fields
+                meta: {
+                    event: ev,
+                    method,
+                    url: shortUrl,
+                    status,
+                    message: typeof props.message === 'string' ? props.message : undefined,
+                },
             });
             return;
         }

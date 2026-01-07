@@ -141,6 +141,7 @@ export function WebViewContainer({
               var method = (init && init.method) ? String(init.method).toUpperCase() : 'GET';
               var u = '';
               try { u = (typeof input === 'string') ? input : (input && input.url) ? String(input.url) : ''; } catch (e) {}
+              try { u = String(u || '').split('#')[0].split('?')[0]; } catch (e) {}
               post('WEB_FETCH_START', { method: method, url: u });
               return _fetch.apply(this, arguments).then(function(res) {
                 post('WEB_FETCH', { method: method, url: u, status: res && typeof res.status === 'number' ? res.status : null });
@@ -158,7 +159,11 @@ export function WebViewContainer({
             var _open = XHR.prototype.open;
             var _send = XHR.prototype.send;
             XHR.prototype.open = function(method, url) {
-              try { this.__dd = { method: String(method).toUpperCase(), url: String(url) }; } catch (e) {}
+              try {
+                var uu = String(url || '');
+                try { uu = uu.split('#')[0].split('?')[0]; } catch (e2) {}
+                this.__dd = { method: String(method).toUpperCase(), url: uu };
+              } catch (e) {}
               return _open.apply(this, arguments);
             };
             XHR.prototype.send = function() {
