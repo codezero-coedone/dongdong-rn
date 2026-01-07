@@ -106,9 +106,6 @@ export default function LoginScreen() {
   const handleSocialLogin = async () => {
     try {
       if (DEVTOOLS_ENABLED) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/c4a96aae-788b-4004-a158-5d8f250f832b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(auth)/login.tsx:handleSocialLogin',message:'login press',data:{step,isLastStep,width,hasEnvWebview:Boolean(process.env.EXPO_PUBLIC_WEBVIEW_URL)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{});
-        // #endregion agent log
         devlog({ scope: "NAV", level: "info", message: "login: press kakao" });
       }
       await socialLogin("kakao");
@@ -120,9 +117,6 @@ export default function LoginScreen() {
     } catch (e: any) {
       console.log("social login error:", e);
       if (DEVTOOLS_ENABLED) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/c4a96aae-788b-4004-a158-5d8f250f832b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(auth)/login.tsx:handleSocialLogin',message:'login failed',data:{status:e?.response?.status,hasMessage:Boolean(e?.message)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{});
-        // #endregion agent log
         devlog({
           scope: "NAV",
           level: "error",
@@ -139,11 +133,7 @@ export default function LoginScreen() {
   };
 
   // Mount trace (helps diagnose layout/gesture issues in release builds)
-  if (DEVTOOLS_ENABLED) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/c4a96aae-788b-4004-a158-5d8f250f832b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(auth)/login.tsx:render',message:'render',data:{step,isLastStep,width,dataLen:ONBOARDING_DATA.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H4'})}).catch(()=>{});
-    // #endregion agent log
-  }
+  // NOTE: DEV 관측은 앱 내 DBG(devlog)로 통일한다. (외부 ingest 호출 금지)
 
   return (
     <SafeAreaView style={styles.container}>
