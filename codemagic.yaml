@@ -479,8 +479,6 @@ workflows:
       vars:
         APP_DIR: .
         NODE_ENV: "production"
-        # IMPORTANT: do NOT enforce Play expected SHA1 here. This workflow is for device testing while Play reset is pending.
-        EXPECTED_UPLOAD_CERT_SHA1: ""
         EXPO_PUBLIC_API_URL: "http://api.dongdong.io:3000/api/v1"
         EXPO_PUBLIC_WEBVIEW_URL: "https://guardian.dongdong.kr"
         EXPO_PUBLIC_KAKAO_APP_KEY: "47bc9c4a41a6efc98804915332fbc7e8"
