@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuthStore } from "@/features/auth";
 import Carousel from "react-native-reanimated-carousel";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { devlog } from "@/shared/devtools/devlog";
 
 // 온보딩 데이터 타입
 interface OnboardingItem {
@@ -83,6 +84,7 @@ export default function LoginScreen() {
   const isLastStep = step === ONBOARDING_DATA.length - 1;
 
   const width = Dimensions.get("window").width;
+  const DEVTOOLS_ENABLED = Boolean(__DEV__ || process.env.EXPO_PUBLIC_DEVTOOLS === "1");
 
   const goNext = () => {
     if (step >= ONBOARDING_DATA.length - 1) return;
@@ -103,11 +105,31 @@ export default function LoginScreen() {
 
   const handleSocialLogin = async () => {
     try {
+      if (DEVTOOLS_ENABLED) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/c4a96aae-788b-4004-a158-5d8f250f832b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(auth)/login.tsx:handleSocialLogin',message:'login press',data:{step,isLastStep,width,hasEnvWebview:Boolean(process.env.EXPO_PUBLIC_WEBVIEW_URL)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{});
+        // #endregion agent log
+        devlog({ scope: "NAV", level: "info", message: "login: press kakao" });
+      }
       await socialLogin("kakao");
+      if (DEVTOOLS_ENABLED) {
+        devlog({ scope: "NAV", level: "info", message: "login: kakao ok -> /(tabs)" });
+      }
       // guardian 앱은 WebView 컨텐츠 앱. 로그인 후 즉시 WebView 탭으로 진입.
       router.replace("/(tabs)");
     } catch (e: any) {
       console.log("social login error:", e);
+      if (DEVTOOLS_ENABLED) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/c4a96aae-788b-4004-a158-5d8f250f832b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(auth)/login.tsx:handleSocialLogin',message:'login failed',data:{status:e?.response?.status,hasMessage:Boolean(e?.message)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{});
+        // #endregion agent log
+        devlog({
+          scope: "NAV",
+          level: "error",
+          message: "login: kakao fail",
+          meta: { status: e?.response?.status, message: e?.response?.data?.message || e?.message },
+        });
+      }
       const msg =
         e?.response?.data?.message ||
         e?.message ||
@@ -115,6 +137,13 @@ export default function LoginScreen() {
       Alert.alert("오류", String(msg));
     }
   };
+
+  // Mount trace (helps diagnose layout/gesture issues in release builds)
+  if (DEVTOOLS_ENABLED) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/c4a96aae-788b-4004-a158-5d8f250f832b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(auth)/login.tsx:render',message:'render',data:{step,isLastStep,width,dataLen:ONBOARDING_DATA.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H4'})}).catch(()=>{});
+    // #endregion agent log
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -132,7 +161,12 @@ export default function LoginScreen() {
             data={ONBOARDING_DATA}
             loop={false}
             pagingEnabled
-            onSnapToItem={(idx: number) => setStep(idx)}
+            onSnapToItem={(idx: number) => {
+              setStep(idx);
+              if (DEVTOOLS_ENABLED) {
+                devlog({ scope: "NAV", level: "info", message: `onboarding: snap idx=${idx}` });
+              }
+            }}
             renderItem={({ item }: { item: OnboardingItem }) => (
               <View style={styles.slide}>
                 {/* 텍스트 영역 */}

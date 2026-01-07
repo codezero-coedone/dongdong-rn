@@ -4,6 +4,7 @@ import {
     WEBVIEW_URL,
     isAllowedUrl,
 } from '@/shared/config/webview';
+import { devlog } from '@/shared/devtools/devlog';
 import React, { useCallback, useEffect } from 'react';
 import { ActivityIndicator, AppState, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -44,6 +45,7 @@ export function WebViewContainer({
 
     const token = useAuthStore((state) => state.token);
     const user = useAuthStore((state) => state.user);
+    const DEVTOOLS_ENABLED = Boolean(__DEV__ || process.env.EXPO_PUBLIC_DEVTOOLS === '1');
 
     // ==========================================================
     // HARD GATE: WebView must never mount before RN owns an accessToken.
@@ -81,6 +83,18 @@ export function WebViewContainer({
     const base = WEBVIEW_URL.replace(/\/+$/, '');
     const path = initialPath.startsWith('/') ? initialPath : `/${initialPath}`;
     const url = `${base}${path}`;
+
+    if (DEVTOOLS_ENABLED) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/c4a96aae-788b-4004-a158-5d8f250f832b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'src/features/webview/ui/WebViewContainer.tsx:init',message:'webview url computed',data:{base,initialPath,path,url,hasToken:Boolean(token)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{});
+        // #endregion agent log
+        devlog({
+            scope: 'SYS',
+            level: 'info',
+            message: `webview: mount url=${url}`,
+            meta: { base, path, hasToken: Boolean(token) },
+        });
+    }
 
     // Some builds may ship without NativeWind/className wiring.
     // Always keep WebView container layout deterministic with explicit RN styles.
@@ -127,6 +141,9 @@ export function WebViewContainer({
     const handleLoadEnd = useCallback(() => {
         setLoading(false);
         setReady(true);
+        if (DEVTOOLS_ENABLED) {
+            devlog({ scope: 'SYS', level: 'info', message: 'webview: loadEnd' });
+        }
 
         // 토큰 전송
         if (token) {
@@ -167,6 +184,12 @@ export function WebViewContainer({
                 setError(
                     `차단된 이동입니다.\nURL=${request.url}\n\n(로그인/인증 페이지는 RN 네이티브에서만 가능합니다)`,
                 );
+                if (DEVTOOLS_ENABLED) {
+                    // #region agent log
+                    fetch('http://127.0.0.1:7242/ingest/c4a96aae-788b-4004-a158-5d8f250f832b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'src/features/webview/ui/WebViewContainer.tsx:shouldStart',message:'blocked url',data:{url:request.url},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{});
+                    // #endregion agent log
+                    devlog({ scope: 'SYS', level: 'warn', message: `webview: blocked url=${request.url}` });
+                }
             }
             return ok;
         },
@@ -179,6 +202,14 @@ export function WebViewContainer({
     const handleError = useCallback(
         (syntheticEvent: { nativeEvent: { description: string } }) => {
             setError(syntheticEvent.nativeEvent.description);
+            if (DEVTOOLS_ENABLED) {
+                devlog({
+                    scope: 'SYS',
+                    level: 'error',
+                    message: 'webview: error',
+                    meta: { desc: syntheticEvent?.nativeEvent?.description },
+                });
+            }
         },
         [setError]
     );

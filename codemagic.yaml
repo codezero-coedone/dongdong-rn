@@ -111,7 +111,8 @@ workflows:
         # (If you need side-by-side install later, we can introduce a dedicated *.dev rail again.)
         DEV_ANDROID_PACKAGE: "kr.slicemind.dongdong.guardian"
         EXPO_PUBLIC_API_URL: "http://api.dongdong.io:3000/api/v1"
-        EXPO_PUBLIC_WEBVIEW_URL: "https://guardian.dongdong.kr"
+        # DEV API와 짝을 맞추기 위해 WebView는 dev-client를 사용 (guardian.dongdong.kr 준비 전)
+        EXPO_PUBLIC_WEBVIEW_URL: "http://dev-client.dongdong.io"
         EXPO_PUBLIC_KAKAO_APP_KEY: "47bc9c4a41a6efc98804915332fbc7e8"
         KAKAO_APP_KEY: "47bc9c4a41a6efc98804915332fbc7e8"
         KEYSTORE_FILE: guardian-upload.jks
@@ -298,7 +299,8 @@ workflows:
         VC_BASE: 200000
         # Public app config (keep builds deterministic even if Codemagic UI vars are missing)
         EXPO_PUBLIC_API_URL: "http://api.dongdong.io:3000/api/v1"
-        EXPO_PUBLIC_WEBVIEW_URL: "https://guardian.dongdong.kr"
+        # DEV API와 짝을 맞추기 위해 WebView는 dev-client를 사용 (guardian.dongdong.kr 준비 전)
+        EXPO_PUBLIC_WEBVIEW_URL: "http://dev-client.dongdong.io"
         EXPO_PUBLIC_KAKAO_APP_KEY: "47bc9c4a41a6efc98804915332fbc7e8"
         KAKAO_APP_KEY: "47bc9c4a41a6efc98804915332fbc7e8"
         # Secrets must be set in Codemagic UI (Environment variables / Groups):
@@ -587,7 +589,8 @@ workflows:
         APP_DIR: .
         NODE_ENV: "production"
         EXPO_PUBLIC_API_URL: "http://api.dongdong.io:3000/api/v1"
-        EXPO_PUBLIC_WEBVIEW_URL: "https://guardian.dongdong.kr"
+        # DEV API와 짝을 맞추기 위해 WebView는 dev-client를 사용 (guardian.dongdong.kr 준비 전)
+        EXPO_PUBLIC_WEBVIEW_URL: "http://dev-client.dongdong.io"
         EXPO_PUBLIC_KAKAO_APP_KEY: "47bc9c4a41a6efc98804915332fbc7e8"
         KAKAO_APP_KEY: "47bc9c4a41a6efc98804915332fbc7e8"
         KEYSTORE_FILE: guardian-upload.jks

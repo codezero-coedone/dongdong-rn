@@ -5,7 +5,7 @@
 - 환경변수(예시): `ENV.example.txt`
   - `EXPO_PUBLIC_API_URL=http://api.dongdong.io:3000/api/v1`
   - `EXPO_PUBLIC_KAKAO_APP_KEY=47bc...` (guardian)
-  - `EXPO_PUBLIC_WEBVIEW_URL=https://guardian.dongdong.kr`
+  - `EXPO_PUBLIC_WEBVIEW_URL=http://dev-client.dongdong.io` (DEV/QA 기본)
 - 앱 설정(플러그인/카카오 키 주입): `app.config.js`
 - 패키지명/버전코드: `app.json`
 
