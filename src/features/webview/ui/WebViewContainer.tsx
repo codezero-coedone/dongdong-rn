@@ -139,6 +139,35 @@ export function WebViewContainer({
             } catch (e) {}
           }
 
+          function getHeaderValue(headers, keyLower) {
+            if (!headers) return '';
+            try {
+              if (typeof headers.get === 'function') {
+                // Headers object
+                return String(headers.get(keyLower) || headers.get(keyLower.toLowerCase()) || '');
+              }
+            } catch (e) {}
+            try {
+              if (Array.isArray(headers)) {
+                // [ [k,v], ... ]
+                for (var i = 0; i < headers.length; i++) {
+                  var kv = headers[i];
+                  if (!kv || kv.length < 2) continue;
+                  var k = String(kv[0] || '').toLowerCase();
+                  if (k === keyLower) return String(kv[1] || '');
+                }
+              }
+            } catch (e) {}
+            try {
+              // plain object
+              for (var k2 in headers) {
+                if (!Object.prototype.hasOwnProperty.call(headers, k2)) continue;
+                if (String(k2).toLowerCase() === keyLower) return String(headers[k2] || '');
+              }
+            } catch (e) {}
+            return '';
+          }
+
           // fetch hook
           var _fetch = window.fetch;
           if (typeof _fetch === 'function') {
@@ -148,6 +177,12 @@ export function WebViewContainer({
               var u = '';
               try { u = (typeof input === 'string') ? input : (input && input.url) ? String(input.url) : ''; } catch (e) {}
               try { u = String(u || '').split('#')[0].split('?')[0]; } catch (e) {}
+              // Next.js Server Action detection (prevents "Failed to find Server Action" stuck states after redeploy).
+              var isServerAction = false;
+              try {
+                var hv = getHeaderValue(init && init.headers, 'next-action');
+                isServerAction = !!(hv && String(hv).trim());
+              } catch (e) {}
               // Attach rid header (CORS must allow X-DD-Request-Id)
               try {
                 if (!init) init = {};
@@ -163,7 +198,18 @@ export function WebViewContainer({
               } catch (e) {}
               post('WEB_FETCH_START', { rid: rid, method: method, url: u });
               return _fetch.apply(this, arguments).then(function(res) {
-                post('WEB_FETCH', { rid: rid, method: method, url: u, status: res && typeof res.status === 'number' ? res.status : null });
+                var st = res && typeof res.status === 'number' ? res.status : null;
+                post('WEB_FETCH', { rid: rid, method: method, url: u, status: st, serverAction: isServerAction ? true : undefined });
+                // Self-heal: if a Server Action call fails (often due to older/newer deployment mismatch), reload once.
+                try {
+                  if (isServerAction && st != null && Number(st) >= 500) {
+                    if (!window.__ddServerActionReloaded) {
+                      window.__ddServerActionReloaded = true;
+                      post('WEB_SERVER_ACTION_RELOAD', { rid: rid, method: method, url: u, status: st });
+                      setTimeout(function() { try { location.reload(); } catch (e) {} }, 50);
+                    }
+                  }
+                } catch (e) {}
                 return res;
               }).catch(function(err) {
                 post('WEB_FETCH_ERR', { rid: rid, method: method, url: u, message: String((err && err.message) || err) });
