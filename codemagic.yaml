@@ -61,7 +61,14 @@ workflows:
             echo "$KEYTOOL_LIST" | head -n 20
             exit 8
           }
-          KEY_ALIAS="$(echo "$KEYTOOL_LIST" | awk -F, 'NF>=1 {gsub(/^[ \t]+|[ \t]+$/, "", $1); if ($1!="" && $1!~/(Keystore type|Keystore provider)/) {print $1; exit}}')"
+          KEY_ALIAS="$(echo "$KEYTOOL_LIST" \
+            | grep -E 'PrivateKeyEntry|keyEntry' \
+            | head -n 1 \
+            | awk -F, '{gsub(/^[ \t]+|[ \t]+$/, "", $1); print $1}')"
+          if [ -z "$KEY_ALIAS" ]; then
+            KEY_ALIAS="$(keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" 2>/dev/null \
+              | awk -F': ' '/Alias name:/{print $2; exit}')"
+          fi
           if [ -z "$KEY_ALIAS" ]; then
             echo "Failed to detect key alias."
             exit 2
@@ -210,7 +217,14 @@ workflows:
               echo "$KEYTOOL_LIST" | head -n 20
               exit 8
             }
-            KEY_ALIAS="$(echo "$KEYTOOL_LIST" | awk -F, 'NF>=1 {gsub(/^[ \t]+|[ \t]+$/, "", $1); if ($1!="" && $1!~/(Keystore type|Keystore provider)/) {print $1; exit}}')"
+            KEY_ALIAS="$(echo "$KEYTOOL_LIST" \
+              | grep -E 'PrivateKeyEntry|keyEntry' \
+              | head -n 1 \
+              | awk -F, '{gsub(/^[ \t]+|[ \t]+$/, "", $1); print $1}')"
+          fi
+          if [ -z "$KEY_ALIAS" ]; then
+            KEY_ALIAS="$(keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" 2>/dev/null \
+              | awk -F': ' '/Alias name:/{print $2; exit}')"
           fi
           if [ -z "$KEY_ALIAS" ]; then
             echo "Failed to detect key alias. Set CM_KEY_ALIAS explicitly."
@@ -418,7 +432,14 @@ workflows:
               echo "$KEYTOOL_LIST" | head -n 20
               exit 8
             }
-            KEY_ALIAS="$(echo "$KEYTOOL_LIST" | awk -F, 'NF>=1 {gsub(/^[ \t]+|[ \t]+$/, "", $1); if ($1!="" && $1!~/(Keystore type|Keystore provider)/) {print $1; exit}}')"
+            KEY_ALIAS="$(echo "$KEYTOOL_LIST" \
+              | grep -E 'PrivateKeyEntry|keyEntry' \
+              | head -n 1 \
+              | awk -F, '{gsub(/^[ \t]+|[ \t]+$/, "", $1); print $1}')"
+          fi
+          if [ -z "$KEY_ALIAS" ]; then
+            KEY_ALIAS="$(keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" 2>/dev/null \
+              | awk -F': ' '/Alias name:/{print $2; exit}')"
           fi
           if [ -z "$KEY_ALIAS" ]; then
             echo "Failed to detect key alias. Set CM_KEY_ALIAS explicitly."
@@ -532,7 +553,14 @@ workflows:
             exit 2
           fi
           KEYTOOL_LIST="$(keytool -list -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" 2>&1)" || exit 8
-          KEY_ALIAS_BT="$(echo "$KEYTOOL_LIST" | awk -F, 'NF>=1 {gsub(/^[ \t]+|[ \t]+$/, "", $1); if ($1!="" && $1!~/(Keystore type|Keystore provider)/) {print $1; exit}}')"
+          KEY_ALIAS_BT="$(echo "$KEYTOOL_LIST" \
+            | grep -E 'PrivateKeyEntry|keyEntry' \
+            | head -n 1 \
+            | awk -F, '{gsub(/^[ \t]+|[ \t]+$/, "", $1); print $1}')"
+          if [ -z "$KEY_ALIAS_BT" ]; then
+            KEY_ALIAS_BT="$(keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" 2>/dev/null \
+              | awk -F': ' '/Alias name:/{print $2; exit}')"
+          fi
           if [ -z "$KEY_ALIAS_BT" ]; then
             echo "Failed to detect key alias"
             exit 2
@@ -670,7 +698,14 @@ workflows:
             exit 2
           fi
           KEYTOOL_LIST="$(keytool -list -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" 2>&1)" || exit 8
-          KEY_ALIAS_BT="$(echo "$KEYTOOL_LIST" | awk -F, 'NF>=1 {gsub(/^[ \t]+|[ \t]+$/, "", $1); if ($1!="" && $1!~/(Keystore type|Keystore provider)/) {print $1; exit}}')"
+          KEY_ALIAS_BT="$(echo "$KEYTOOL_LIST" \
+            | grep -E 'PrivateKeyEntry|keyEntry' \
+            | head -n 1 \
+            | awk -F, '{gsub(/^[ \t]+|[ \t]+$/, "", $1); print $1}')"
+          if [ -z "$KEY_ALIAS_BT" ]; then
+            KEY_ALIAS_BT="$(keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" 2>/dev/null \
+              | awk -F': ' '/Alias name:/{print $2; exit}')"
+          fi
           KEY_PASS="${CM_KEY_PASSWORD:-$CM_KEYSTORE_PASSWORD}"
 
           BUNDLETOOL_VERSION="1.16.0"
