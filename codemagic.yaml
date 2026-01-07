@@ -129,12 +129,11 @@ workflows:
             const fs=require('fs');
             const p='./app.json';
             const j=JSON.parse(fs.readFileSync(p,'utf8'));
-            const nowSec=Math.floor(Date.now()/1000);
             const bn=Number(process.env.CM_BUILD_NUMBER||0);
-            const id=String(process.env.CM_BUILD_ID||process.env.CM_BUILD_RUN_ID||process.env.CM_BUILD_UUID||'');
-            const hash=(s)=>{let h=0; for (let i=0;i<s.length;i++) h=(h*31 + s.charCodeAt(i))>>>0; return h;};
-            const offset=(id ? (hash(id)%997)+1 : (Number.isFinite(bn)&&bn>0 ? (bn%997)+1 : 1));
-            const vc=nowSec + offset;
+            const base=Number(process.env.VC_BASE||0);
+            if (!(Number.isFinite(base) && base>0)) throw new Error('invalid VC_BASE='+base);
+            if (!(Number.isFinite(bn) && bn>0)) throw new Error('missing/invalid CM_BUILD_NUMBER='+bn);
+            const vc=base + bn;
             j.expo=j.expo||{};
             j.expo.android=j.expo.android||{};
             j.expo.android.package=String(process.env.DEV_ANDROID_PACKAGE||j.expo.android.package);
@@ -328,20 +327,18 @@ workflows:
             const fs=require('fs');
             const p='./app.json';
             const j=JSON.parse(fs.readFileSync(p,'utf8'));
-            // Play requires a strictly increasing versionCode.
-            // Some rebuilds can reuse Codemagic build numbers; avoid duplicates by using time + a small offset.
-            const nowSec=Math.floor(Date.now()/1000);
             const bn=Number(process.env.CM_BUILD_NUMBER||0);
-            const id=String(process.env.CM_BUILD_ID||process.env.CM_BUILD_RUN_ID||process.env.CM_BUILD_UUID||'');
-            const hash=(s)=>{let h=0; for (let i=0;i<s.length;i++) h=(h*31 + s.charCodeAt(i))>>>0; return h;};
-            const offset=(id ? (hash(id)%997)+1 : (Number.isFinite(bn)&&bn>0 ? (bn%997)+1 : 1));
-            const vc=nowSec + offset;
+            // SEALED: vc+1 rail (vc+1 x2)
+            const base=Number(process.env.VC_BASE||0);
+            if (!(Number.isFinite(base) && base>0)) throw new Error('invalid VC_BASE='+base);
+            if (!(Number.isFinite(bn) && bn>0)) throw new Error('missing/invalid CM_BUILD_NUMBER='+bn);
+            const vc=base + bn;
             if (!(Number.isFinite(vc) && vc > 0 && vc < 2100000000)) throw new Error('invalid versionCode='+vc);
             j.expo=j.expo||{};
             j.expo.android=j.expo.android||{};
             j.expo.android.versionCode=vc;
             fs.writeFileSync(p, JSON.stringify(j,null,2)+'\\n');
-            console.log('[ci] now_sec='+nowSec+' offset='+offset+' build_number='+bn+' build_id_len='+id.length);
+            console.log('[ci] VC_BASE='+base+' build_number='+bn);
             console.log('[ci] android.versionCode='+vc);
           "
       - name: Expo prebuild (android)
@@ -588,6 +585,7 @@ workflows:
       vars:
         APP_DIR: .
         NODE_ENV: "production"
+        VC_BASE: 200000
         EXPO_PUBLIC_API_URL: "http://api.dongdong.io:3000/api/v1"
         # DEV API와 짝을 맞추기 위해 WebView는 dev-client를 사용 (guardian.dongdong.kr 준비 전)
         EXPO_PUBLIC_WEBVIEW_URL: "http://dev-client.dongdong.io"
@@ -607,12 +605,11 @@ workflows:
             const fs=require('fs');
             const p='./app.json';
             const j=JSON.parse(fs.readFileSync(p,'utf8'));
-            const nowSec=Math.floor(Date.now()/1000);
             const bn=Number(process.env.CM_BUILD_NUMBER||0);
-            const id=String(process.env.CM_BUILD_ID||process.env.CM_BUILD_RUN_ID||process.env.CM_BUILD_UUID||'');
-            const hash=(s)=>{let h=0; for (let i=0;i<s.length;i++) h=(h*31 + s.charCodeAt(i))>>>0; return h;};
-            const offset=(id ? (hash(id)%997)+1 : (Number.isFinite(bn)&&bn>0 ? (bn%997)+1 : 1));
-            const vc=nowSec + offset;
+            const base=Number(process.env.VC_BASE||0);
+            if (!(Number.isFinite(base) && base>0)) throw new Error('invalid VC_BASE='+base);
+            if (!(Number.isFinite(bn) && bn>0)) throw new Error('missing/invalid CM_BUILD_NUMBER='+bn);
+            const vc=base + bn;
             j.expo=j.expo||{};
             j.expo.android=j.expo.android||{};
             j.expo.android.versionCode=vc;
