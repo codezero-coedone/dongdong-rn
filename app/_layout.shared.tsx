@@ -109,7 +109,7 @@ function ForceUpdateScreen({
 }
 
 function useProtectedRoute() {
-  const { isAuthenticated, isLoading, isSignupComplete } = useAuthStore();
+  const { isAuthenticated, isLoading } = useAuthStore();
   const segments = useSegments();
   const router = useRouter();
 
@@ -120,13 +120,10 @@ function useProtectedRoute() {
 
     if (!isAuthenticated && !inAuthGroup) {
       router.replace("/(auth)/permission");
-    } else if (isAuthenticated && !isSignupComplete && !inAuthGroup) {
-      // 로그인 후, RN 네이티브 회원가입(환자등록) 완료 전에는 WebView로 가지 않는다.
-      router.replace("/(auth)/role-selection");
-    } else if (isAuthenticated && isSignupComplete && inAuthGroup) {
+    } else if (isAuthenticated && inAuthGroup) {
       router.replace("/(tabs)");
     }
-  }, [isAuthenticated, isSignupComplete, isLoading, segments, router]);
+  }, [isAuthenticated, isLoading, segments, router]);
 }
 
 function LoadingScreen() {
