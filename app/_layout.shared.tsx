@@ -27,6 +27,18 @@ import { devlog } from "@/shared/devtools/devlog";
 import { secureStorage } from "@/shared/lib/storage";
 import { STORAGE_KEYS } from "@/shared/constants/storage";
 
+/**
+ * ============================================
+ * SEALED GUARDRAILS (v0.1) — DO NOT BREAK
+ * ============================================
+ * - Guardian 앱은 "WebView 컨테이너"다.
+ * - 토큰/인증 소유권은 RN 앱이 단일 소유한다.
+ * - 공통 경계선(분기 금지): 온보딩 → 권한 → 카카오 → SMS → 인증완료
+ * - v0.1 Guardian은 인증 전에는 permission(1회) → login 으로만 이동한다(권한 루프 금지).
+ * - (auth) 내의 네이티브 환자등록/role-selection 등은 v0.1 플로우에서 사용 금지(Dead path).
+ *   정리는 v0.1 완주 후 일괄 처리한다.
+ */
+
 function parseSemver(v: string): [number, number, number] {
   const parts = String(v || "")
     .trim()
