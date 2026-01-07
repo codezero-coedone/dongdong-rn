@@ -107,8 +107,8 @@ workflows:
         APP_DIR: .
         NODE_ENV: "production"
         VC_BASE: 900000
-        # IMPORTANT: dev-only package so it can be installed immediately without Play upload-key restrictions.
-        # This does NOT replace the Play package (kr.slicemind.dongdong.guardian).
+        # dev-only package so it can be installed alongside the Play build (side-by-side).
+        # NOTE: Register this package in Kakao Developers (Android platform) too.
         DEV_ANDROID_PACKAGE: "kr.slicemind.dongdong.guardian.dev"
         EXPO_PUBLIC_API_URL: "http://api.dongdong.io:3000/api/v1"
         EXPO_PUBLIC_WEBVIEW_URL: "https://guardian.dongdong.kr"
@@ -147,10 +147,100 @@ workflows:
           cd "$APP_DIR"
           rm -rf android ios
           npx expo prebuild --platform android --clean
-      - name: Android assembleRelease (APK)
+      - name: Android assembleRelease (APK, signed)
         script: |
           cd "$APP_DIR/android"
-          ./gradlew --no-daemon --build-cache --max-workers=2 :app:assembleRelease
+          # Resolve keystore file path robustly (Codemagic can expose it via different mechanisms).
+          KEYSTORE_PATH=""
+          echo "KEYSTORE_FILE=${KEYSTORE_FILE:-}"
+          echo "CM_KEYSTORE_PATH=${CM_KEYSTORE_PATH:-}"
+          echo "CM_SECURE_FILES_PATH=${CM_SECURE_FILES_PATH:-}"
+          echo "CM_BUILD_DIR=${CM_BUILD_DIR:-}"
+
+          # 1) Codemagic Android keystore integration (preferred)
+          if [ -n "${CM_KEYSTORE_PATH:-}" ] && [ -f "${CM_KEYSTORE_PATH:-}" ]; then
+            KEYSTORE_PATH="${CM_KEYSTORE_PATH:-}"
+          fi
+          if [ -z "$KEYSTORE_PATH" ] && [ -n "${CM_KEYSTORE_PATH:-}" ] && [ -d "${CM_KEYSTORE_PATH:-}" ]; then
+            echo "CM_KEYSTORE_PATH is a directory; listing:"
+            ls -la "${CM_KEYSTORE_PATH:-}" || true
+            if [ -n "${KEYSTORE_FILE:-}" ] && [ -f "${CM_KEYSTORE_PATH:-}/$KEYSTORE_FILE" ]; then
+              KEYSTORE_PATH="${CM_KEYSTORE_PATH:-}/$KEYSTORE_FILE"
+            else
+              KEYSTORE_PATH="$(find "${CM_KEYSTORE_PATH:-}" -maxdepth 2 -type f -name '*.jks' 2>/dev/null | head -n 1 || true)"
+            fi
+          fi
+
+          # 2) Secure files
+          if [ -z "$KEYSTORE_PATH" ] && [ -n "${CM_SECURE_FILES_PATH:-}" ] && [ -f "${CM_SECURE_FILES_PATH:-}/$KEYSTORE_FILE" ]; then
+            KEYSTORE_PATH="${CM_SECURE_FILES_PATH:-}/$KEYSTORE_FILE"
+          fi
+
+          # 3) Build dir (if user uploaded as a generic file)
+          if [ -z "$KEYSTORE_PATH" ] && [ -f "$CM_BUILD_DIR/$KEYSTORE_FILE" ]; then
+            KEYSTORE_PATH="$CM_BUILD_DIR/$KEYSTORE_FILE"
+          fi
+
+          if [ -z "$KEYSTORE_PATH" ] || [ ! -f "$KEYSTORE_PATH" ]; then
+            echo "Keystore file not found. Ensure Codemagic keystore reference is attached and CM_KEYSTORE_PASSWORD is set."
+            exit 2
+          fi
+          if [ -z "${CM_KEYSTORE_PASSWORD:-}" ]; then
+            echo "Missing CM_KEYSTORE_PASSWORD."
+            exit 2
+          fi
+          echo "KEYSTORE_PATH=$KEYSTORE_PATH"
+          ls -la "$KEYSTORE_PATH" || true
+
+          # Auto-detect alias to avoid manual mistakes (works when keystore has a single entry).
+          KEY_ALIAS="${CM_KEY_ALIAS:-}"
+          if [ -z "$KEY_ALIAS" ]; then
+            KEYTOOL_LIST="$(keytool -list -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" 2>&1)" || {
+              echo "Failed to read keystore with CM_KEYSTORE_PASSWORD (wrong password?)"
+              echo "$KEYTOOL_LIST" | head -n 20
+              exit 8
+            }
+            KEY_ALIAS="$(echo "$KEYTOOL_LIST" | awk -F, 'NF>=1 {gsub(/^[ \t]+|[ \t]+$/, "", $1); if ($1!="" && $1!~/(Keystore type|Keystore provider)/) {print $1; exit}}')"
+          fi
+          if [ -z "$KEY_ALIAS" ]; then
+            echo "Failed to detect key alias. Set CM_KEY_ALIAS explicitly."
+            exit 2
+          fi
+
+          KEY_PASS="${CM_KEY_PASSWORD:-$CM_KEYSTORE_PASSWORD}"
+
+          echo "=== SIGNING_INFO (guardian-apk-dev) ==="
+          PKG="$(node -p 'require(\"../app.json\").expo.android.package')"
+          echo "package=$PKG"
+          echo "versionCode=$(node -p 'require(\"../app.json\").expo.android.versionCode')"
+          echo "KEY_ALIAS=$KEY_ALIAS"
+          CERT_INFO="$(keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" 2>&1)" || {
+            echo "Failed to read cert details (wrong password/alias?)"
+            echo "$CERT_INFO" | head -n 40
+            exit 8
+          }
+          echo "$CERT_INFO" | grep -E "SHA1:|SHA256:" || true
+          if command -v openssl >/dev/null 2>&1; then
+            KEY_HASH="$(keytool -exportcert -alias "$KEY_ALIAS" -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" 2>/dev/null | openssl sha1 -binary | openssl base64 2>/dev/null || true)"
+            if [ -n "$KEY_HASH" ]; then
+              echo "KAKAO_KEY_HASH=$KEY_HASH"
+              echo "$KEY_HASH" > "$CM_BUILD_DIR/kakao_key_hash.txt"
+              SAFE_PKG="${PKG//./_}"
+              OUT="$CM_BUILD_DIR/kakao_key_hash_${SAFE_PKG}_${CM_BUILD_NUMBER}.txt"
+              {
+                echo "package=$PKG"
+                echo "build_number=${CM_BUILD_NUMBER:-}"
+                echo "key_alias=$KEY_ALIAS"
+                echo "kakao_key_hash_base64=$KEY_HASH"
+              } > "$OUT"
+            fi
+          fi
+
+          ./gradlew --no-daemon --build-cache --max-workers=2 :app:assembleRelease \
+            -Pandroid.injected.signing.store.file="$KEYSTORE_PATH" \
+            -Pandroid.injected.signing.store.password="$CM_KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$KEY_PASS"
       - name: Verify + SHA256 (APK)
         script: |
           cd "$APP_DIR/android"
@@ -160,9 +250,16 @@ workflows:
             exit 3
           fi
           echo "APK=$APK"
-          jarsigner -verify -verbose -certs "$APK" || exit 4
+          if command -v apksigner >/dev/null 2>&1; then
+            apksigner verify --print-certs "$APK" || exit 4
+          else
+            echo "apksigner not found; falling back to jarsigner (may report unsigned for v2/v3-only APKs)"
+            jarsigner -verify -verbose -certs "$APK" || exit 4
+          fi
           sha256sum "$APK" | tee "$APK.sha256.txt"
     artifacts:
+      - kakao_key_hash.txt
+      - kakao_key_hash_*.txt
       - android/app/build/outputs/apk/release/*.apk
       - android/app/build/outputs/apk/release/*.sha256.txt
       - android/app/build/reports/**/*
