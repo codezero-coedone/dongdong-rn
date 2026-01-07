@@ -23,6 +23,9 @@ import { useAuthStore } from "@/features/auth";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { QueryProvider } from "@/shared/lib/react-query";
 import { DevOverlay } from "@/shared/devtools/DevOverlay";
+import { devlog } from "@/shared/devtools/devlog";
+import { secureStorage } from "@/shared/lib/storage";
+import { STORAGE_KEYS } from "@/shared/constants/storage";
 
 function parseSemver(v: string): [number, number, number] {
   const parts = String(v || "")
@@ -118,11 +121,44 @@ function useProtectedRoute() {
 
     const inAuthGroup = segments[0] === "(auth)";
 
-    if (!isAuthenticated && !inAuthGroup) {
-      router.replace("/(auth)/permission");
-    } else if (isAuthenticated && inAuthGroup) {
-      router.replace("/(tabs)");
-    }
+    const DEVTOOLS_ENABLED = Boolean(__DEV__ || process.env.EXPO_PUBLIC_DEVTOOLS === "1");
+
+    // 권한 온보딩은 1회만 노출 (무한 루프 방지)
+    const decide = async () => {
+      let onboardingComplete = false;
+      try {
+        const v = await secureStorage.get(STORAGE_KEYS.ONBOARDING_COMPLETE);
+        onboardingComplete = v === "1" || v === "true";
+      } catch {
+        onboardingComplete = false;
+      }
+
+      if (DEVTOOLS_ENABLED) {
+        devlog({
+          scope: "NAV",
+          level: "info",
+          message: `route: auth=${String(isAuthenticated)} loading=${String(isLoading)} onboarding=${String(onboardingComplete)} seg=${segments.join("/")}`,
+        });
+      }
+
+      if (!isAuthenticated) {
+        // 미인증 상태: 첫 실행에는 권한 화면, 이후에는 로그인 화면으로 고정
+        const target = onboardingComplete ? "/(auth)/login" : "/(auth)/permission";
+        if (!inAuthGroup || (segments[1] !== "login" && segments[1] !== "permission")) {
+          router.replace(target);
+        } else if (segments[1] === "permission" && onboardingComplete) {
+          router.replace("/(auth)/login");
+        }
+        return;
+      }
+
+      // 인증 완료면 auth 그룹을 벗어나 탭으로
+      if (isAuthenticated && inAuthGroup) {
+        router.replace("/(tabs)");
+      }
+    };
+
+    void decide();
   }, [isAuthenticated, isLoading, segments, router]);
 }
 

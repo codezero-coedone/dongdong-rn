@@ -10,6 +10,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   View,
 } from "react-native";
@@ -73,21 +74,65 @@ function PermissionRow({ item }: { item: PermissionItem }) {
   const iconName = ICON_MAP[item.type] || "help-circle";
 
   return (
-    <View className="flex-row items-center py-4 border-b border-gray-100">
+    <View style={styles.row}>
       <View
-        className="w-10 h-10 rounded-full items-center justify-center mr-4"
-        style={{ backgroundColor: `${item.iconColor}15` }}
+        style={[styles.iconWrap, { backgroundColor: `${item.iconColor}15` }]}
       >
         <Ionicons name={iconName} size={22} color={item.iconColor} />
       </View>
-      <View className="flex-1">
-        <Text className="text-base font-semibold text-gray-900 mb-0.5">
-          {item.title}
-        </Text>
-        <Text className="text-sm text-gray-500">{item.description}</Text>
+      <View style={styles.rowText}>
+        <Text style={styles.rowTitle}>{item.title}</Text>
+        <Text style={styles.rowDesc}>{item.description}</Text>
       </View>
     </View>
   );
+}
+
+async function getCurrentPermission(type: PermissionType): Promise<boolean> {
+  try {
+    switch (type) {
+      case "location": {
+        const { status } = await Location.getForegroundPermissionsAsync();
+        return status === "granted";
+      }
+      case "camera": {
+        const { status } = await Camera.getCameraPermissionsAsync();
+        return status === "granted";
+      }
+      case "storage": {
+        const { status } = await MediaLibrary.getPermissionsAsync();
+        return status === "granted";
+      }
+      case "contacts": {
+        const { status } = await Contacts.getPermissionsAsync();
+        return status === "granted";
+      }
+      case "bluetooth":
+      case "phone":
+        return true;
+      default:
+        return false;
+    }
+  } catch {
+    return false;
+  }
+}
+
+async function buildCurrentResults(
+  permissions: PermissionItem[],
+): Promise<Record<PermissionType, boolean>> {
+  const results: Record<PermissionType, boolean> = {
+    location: false,
+    camera: false,
+    storage: false,
+    bluetooth: false,
+    phone: false,
+    contacts: false,
+  };
+  for (const p of permissions) {
+    results[p.type] = await getCurrentPermission(p.type);
+  }
+  return results;
 }
 
 export function PermissionScreen({
@@ -102,16 +147,18 @@ export function PermissionScreen({
   const handleConfirm = async () => {
     setIsRequesting(true);
 
-    const results: Record<PermissionType, boolean> = {
-      location: false,
-      camera: false,
-      storage: false,
-      bluetooth: false,
-      phone: false,
-      contacts: false,
-    };
+    // If already granted, don't re-prompt (prevents repeated dialogs on every entry)
+    const results = await buildCurrentResults(permissions);
+    const allBeforeGranted = Object.values(results).every(Boolean);
+    if (allBeforeGranted) {
+      setIsRequesting(false);
+      onComplete?.(results);
+      onConfirm?.();
+      return;
+    }
 
     for (const permission of permissions) {
+      if (results[permission.type]) continue;
       const granted = await requestPermission(permission.type);
       results[permission.type] = granted;
 
@@ -138,39 +185,41 @@ export function PermissionScreen({
 
   return (
     <View
-      className="flex-1 bg-white"
-      style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
+      style={[
+        styles.container,
+        { paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, 0) },
+      ]}
     >
       <ScrollView
-        className="flex-1 px-6"
-        contentContainerStyle={{ paddingBottom: 120 }}
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         {/* Title */}
-        <View className="pt-12 pb-8">
-          <Text className="text-2xl font-bold text-gray-900 leading-9">
+        <View style={styles.titleBox}>
+          <Text style={styles.title}>
             안전하고 간편한 {appName} 이용을 위해{"\n"}아래 권한 허용이
             필요해요.
           </Text>
         </View>
 
         {/* Section Label */}
-        <Text className="text-sm text-gray-400 mb-2">선택 권한</Text>
+        <Text style={styles.sectionLabel}>선택 권한</Text>
 
         {/* Permission List */}
-        <View>
+        <View style={styles.list}>
           {permissions.map((permission) => (
             <PermissionRow key={permission.type} item={permission} />
           ))}
         </View>
 
         {/* Footer Notice */}
-        <View className="mt-8">
-          <Text className="text-xs text-gray-400 leading-5">
+        <View style={styles.notice}>
+          <Text style={styles.noticeText}>
             선택 권한의 경우 허용하지 않으셔도 앱 이용은 가능하나, 일부 서비스
             이용에 제한이 있을 수 있습니다.
           </Text>
-          <Text className="text-xs text-gray-400 mt-2 leading-5">
+          <Text style={[styles.noticeText, { marginTop: 8 }]}>
             {`'디바이스 설정 > 애플리케이션 권한'에서 각 권한 별 변경이 가능합니다.`}
           </Text>
         </View>
@@ -178,16 +227,17 @@ export function PermissionScreen({
 
       {/* Bottom Button */}
       <View
-        className="absolute bottom-0 left-0 right-0 px-6 pb-8 pt-4 bg-white"
-        style={{ paddingBottom: Math.max(insets.bottom, 32) }}
+        style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 32) }]}
       >
         <Pressable
-          className="h-14 rounded-xl items-center justify-center"
-          style={{ backgroundColor: isRequesting ? "#93C5FD" : "#3B82F6" }}
+          style={[
+            styles.btn,
+            { backgroundColor: isRequesting ? "#93C5FD" : "#3B82F6" },
+          ]}
           onPress={handleConfirm}
           disabled={isRequesting}
         >
-          <Text className="text-white text-lg font-semibold">
+          <Text style={styles.btnText}>
             {isRequesting ? "권한 요청 중..." : "확인"}
           </Text>
         </Pressable>
@@ -195,3 +245,51 @@ export function PermissionScreen({
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#fff" },
+  scroll: { flex: 1 },
+  scrollContent: { paddingHorizontal: 24, paddingBottom: 140 },
+  titleBox: { paddingTop: 48, paddingBottom: 24 },
+  title: { fontSize: 22, fontWeight: "800", color: "#111827", lineHeight: 30 },
+  sectionLabel: { fontSize: 12, color: "#9CA3AF", marginBottom: 6 },
+  list: { borderTopWidth: 1, borderTopColor: "#F3F4F6" },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  iconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 14,
+  },
+  rowText: { flex: 1 },
+  rowTitle: { fontSize: 16, fontWeight: "700", color: "#111827", marginBottom: 2 },
+  rowDesc: { fontSize: 13, color: "#6B7280", lineHeight: 18 },
+  notice: { marginTop: 18 },
+  noticeText: { fontSize: 12, color: "#9CA3AF", lineHeight: 18 },
+  footer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    backgroundColor: "#fff",
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
+  },
+  btn: {
+    height: 56,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  btnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+});

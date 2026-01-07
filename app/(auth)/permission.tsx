@@ -5,9 +5,13 @@ import {
   PermissionScreen,
   PermissionType,
 } from "@/shared/ui/permission-screen";
+import { secureStorage } from "@/shared/lib/storage";
+import { STORAGE_KEYS } from "@/shared/constants/storage";
+import { devlog } from "@/shared/devtools/devlog";
 
 export default function PermissionPage() {
   const router = useRouter();
+  const DEVTOOLS_ENABLED = Boolean(__DEV__ || process.env.EXPO_PUBLIC_DEVTOOLS === "1");
 
   const handleComplete = (results: Record<PermissionType, boolean>) => {
     console.log("Permission results:", results);
@@ -19,10 +23,28 @@ export default function PermissionPage() {
     } else {
       console.log("Some permissions were denied");
     }
+
+    if (DEVTOOLS_ENABLED) {
+      const grantedCount = Object.values(results).filter(Boolean).length;
+      devlog({
+        scope: "SYS",
+        level: allGranted ? "info" : "warn",
+        message: `permission complete: granted=${grantedCount}/${Object.keys(results).length}`,
+        meta: { allGranted },
+      });
+    }
   };
 
-  const handleConfirm = () => {
-    // 권한 요청 완료 후 다음 화면으로 이동
+  const handleConfirm = async () => {
+    // 권한 온보딩은 1회만 노출되도록 플래그 저장
+    try {
+      await secureStorage.set(STORAGE_KEYS.ONBOARDING_COMPLETE, "1");
+    } catch {
+      // ignore
+    }
+    if (DEVTOOLS_ENABLED) {
+      devlog({ scope: "NAV", level: "info", message: "permission: confirm -> login" });
+    }
     router.replace("/(auth)/login");
   };
 
