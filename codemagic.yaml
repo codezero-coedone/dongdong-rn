@@ -18,6 +18,13 @@ workflows:
         APP_DIR: .
         KEYSTORE_FILE: guardian-upload.jks
         EXPECTED_UPLOAD_CERT_SHA1: "75:69:F0:C6:EF:65:C2:8A:A9:04:40:41:D6:C6:08:0C:80:E6:FF:10"
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+      cancel_previous_builds: true
     scripts:
       - name: Export guardian upload certificate PEM (for Play upload key reset)
         script: |
@@ -116,6 +123,13 @@ workflows:
         EXPO_PUBLIC_KAKAO_APP_KEY: "47bc9c4a41a6efc98804915332fbc7e8"
         KAKAO_APP_KEY: "47bc9c4a41a6efc98804915332fbc7e8"
         KEYSTORE_FILE: guardian-upload.jks
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+      cancel_previous_builds: true
     scripts:
       - name: Install dependencies (npm ci)
         script: |
@@ -310,6 +324,13 @@ workflows:
         # Play Console expected upload cert SHA1 for guardian (from Play error message).
         # Used as a guard to fail fast if Codemagic picked the wrong keystore.
         EXPECTED_UPLOAD_CERT_SHA1: "75:69:F0:C6:EF:65:C2:8A:A9:04:40:41:D6:C6:08:0C:80:E6:FF:10"
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+      cancel_previous_builds: true
     scripts:
       - name: Install dependencies (npm ci)
         script: |
@@ -592,6 +613,13 @@ workflows:
         EXPO_PUBLIC_KAKAO_APP_KEY: "47bc9c4a41a6efc98804915332fbc7e8"
         KAKAO_APP_KEY: "47bc9c4a41a6efc98804915332fbc7e8"
         KEYSTORE_FILE: guardian-upload.jks
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+      cancel_previous_builds: true
     scripts:
       - name: Install dependencies (npm ci)
         script: |
