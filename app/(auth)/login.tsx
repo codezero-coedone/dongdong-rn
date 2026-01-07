@@ -108,6 +108,15 @@ export default function LoginScreen() {
       </View>
 
       <View style={styles.body}>
+        {/* UX: 이전 슬라이드에서는 화면 탭으로도 다음으로 진행 */}
+        {!isLastStep && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="다음"
+            onPress={handleNext}
+            style={StyleSheet.absoluteFill}
+          />
+        )}
         {/* 텍스트 영역 */}
         <View style={styles.hero}>
           <Text style={styles.heroTitle}>
