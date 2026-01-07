@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Constants from "expo-constants";
 
 import { clearDevLogs, DevLogEntry, getDevLogs, subscribeDevLogs } from "./devlog";
 import { config } from "@/shared/config";
+import { useAuthStore } from "@/features/auth";
 
 function fmtTime(ts: number): string {
   try {
@@ -25,6 +26,7 @@ export function DevOverlay() {
   const enabled = isEnabled();
   const [open, setOpen] = useState(false);
   const [logs, setLogs] = useState<DevLogEntry[]>(enabled ? getDevLogs() : []);
+  const logout = useAuthStore((s: any) => s.logout);
 
   const runtimeInfo = useMemo(() => {
     const pkg =
@@ -78,6 +80,32 @@ export function DevOverlay() {
           <View style={styles.header}>
             <Text style={styles.title}>DEV TRACE</Text>
             <View style={styles.headerBtns}>
+              <Pressable
+                style={[styles.hbtn, styles.hbtnDanger]}
+                onPress={() => {
+                  Alert.alert(
+                    "로그아웃",
+                    "세션(토큰/로그인 상태)만 초기화합니다.\n로컬 데이터/설정은 유지됩니다.",
+                    [
+                      { text: "취소", style: "cancel" },
+                      {
+                        text: "로그아웃",
+                        style: "destructive",
+                        onPress: async () => {
+                          try {
+                            await logout?.();
+                          } catch {
+                            // ignore
+                          }
+                          setOpen(false);
+                        },
+                      },
+                    ],
+                  );
+                }}
+              >
+                <Text style={styles.hbtnText}>Logout</Text>
+              </Pressable>
               <Pressable style={[styles.hbtn, styles.hbtnGhost]} onPress={() => clearDevLogs()}>
                 <Text style={[styles.hbtnText, styles.hbtnTextGhost]}>Clear</Text>
               </Pressable>
@@ -168,6 +196,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   hbtnGhost: { backgroundColor: "rgba(255,255,255,0.10)" },
+  hbtnDanger: { backgroundColor: "#7F1D1D" },
   hbtnText: { color: "#fff", fontWeight: "800" },
   hbtnTextGhost: { color: "rgba(255,255,255,0.9)" },
   legend: {
