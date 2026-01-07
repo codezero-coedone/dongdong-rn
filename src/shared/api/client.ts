@@ -84,7 +84,7 @@ apiClient.interceptors.request.use(
       devlog({
         scope: "API",
         level: "info",
-        message: `${dd?.method || "GET"} ${dd?.url || config.url || ""} → …`,
+        message: `[rid=${String(dd?.rid || "")}] ${dd?.method || "GET"} ${dd?.url || config.url || ""} → …`,
         meta: { rid: dd?.rid, method: dd?.method, url: dd?.url },
       });
     }
@@ -119,7 +119,7 @@ apiClient.interceptors.response.use(
         devlog({
           scope: "API",
           level: "info",
-          message: `${method} ${url} → ${response.status}${typeof ms === "number" ? ` (${ms}ms)` : ""}`,
+          message: `[rid=${String(dd?.rid || "")}] ${method} ${url} → ${response.status}${typeof ms === "number" ? ` (${ms}ms)` : ""}`,
           meta: { rid: dd?.rid, method, url, status: response.status, ms },
         });
       } catch {
@@ -158,14 +158,14 @@ apiClient.interceptors.response.use(
           devlog({
             scope: "API",
             level: status >= 500 ? "error" : status >= 400 ? "warn" : "info",
-            message: `${method} ${url} → ${status}${typeof ms === "number" ? ` (${ms}ms)` : ""}${backendMsg ? ` | ${String(backendMsg)}` : ""}`,
+            message: `[rid=${String(dd?.rid || "")}] ${method} ${url} → ${status}${typeof ms === "number" ? ` (${ms}ms)` : ""}${backendMsg ? ` | ${String(backendMsg)}` : ""}`,
             meta: { rid: dd?.rid, method, url, status, ms },
           });
         } else {
           devlog({
             scope: "API",
             level: "error",
-            message: `${method} ${url} → NETWORK${typeof ms === "number" ? ` (${ms}ms)` : ""} | ${String((error as any)?.message || error)}`,
+            message: `[rid=${String(dd?.rid || "")}] ${method} ${url} → NETWORK${typeof ms === "number" ? ` (${ms}ms)` : ""} | ${String((error as any)?.message || error)}`,
             meta: { rid: dd?.rid, method, url, ms },
           });
         }
