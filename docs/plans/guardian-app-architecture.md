@@ -432,7 +432,7 @@ Week 4 ────────────────────────�
 | **라우팅** | Expo Router |
 | **상태관리** | Zustand |
 | **WebView** | react-native-webview |
-| **인증** | @react-native-seoul/kakao-login, expo-apple-authentication |
+| **인증** | @react-native-seoul/kakao-login (v0.1: KAKAO 고정, Apple은 추후) |
 | **푸시** | expo-notifications, FCM |
 | **저장소** | expo-secure-store |
 | **스타일링** | NativeWind (TailwindCSS) |

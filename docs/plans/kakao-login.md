@@ -127,7 +127,7 @@ const handleKakaoLogout = async () => {
 ```typescript
 // src/features/auth/model/authStore.ts
 
-socialLogin: async (provider: 'kakao' | 'apple') => {
+socialLogin: async (provider: 'kakao') => {
   set({ isLoading: true });
   try {
     if (provider === 'kakao') {

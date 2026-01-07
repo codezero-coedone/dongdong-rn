@@ -107,9 +107,9 @@ workflows:
         APP_DIR: .
         NODE_ENV: "production"
         VC_BASE: 900000
-        # dev-only package so it can be installed alongside the Play build (side-by-side).
-        # NOTE: Register this package in Kakao Developers (Android platform) too.
-        DEV_ANDROID_PACKAGE: "kr.slicemind.dongdong.guardian.dev"
+        # Internal test build uses the production package name to minimize Kakao/Play registration friction.
+        # (If you need side-by-side install later, we can introduce a dedicated *.dev rail again.)
+        DEV_ANDROID_PACKAGE: "kr.slicemind.dongdong.guardian"
         EXPO_PUBLIC_API_URL: "http://api.dongdong.io:3000/api/v1"
         EXPO_PUBLIC_WEBVIEW_URL: "https://guardian.dongdong.kr"
         EXPO_PUBLIC_KAKAO_APP_KEY: "47bc9c4a41a6efc98804915332fbc7e8"
@@ -224,6 +224,11 @@ workflows:
             KEY_HASH="$(keytool -exportcert -alias "$KEY_ALIAS" -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" 2>/dev/null | openssl sha1 -binary | openssl base64 2>/dev/null || true)"
             if [ -n "$KEY_HASH" ]; then
               echo "KAKAO_KEY_HASH=$KEY_HASH"
+              # Embed into the JS bundle so the app can display it in DBG (helps unblock Kakao KeyHash registration).
+              export EXPO_PUBLIC_KAKAO_KEY_HASH="$KEY_HASH"
+              if [ -n "${CM_ENV:-}" ]; then
+                echo "EXPO_PUBLIC_KAKAO_KEY_HASH=$KEY_HASH" >> "$CM_ENV"
+              fi
               echo "$KEY_HASH" > "$CM_BUILD_DIR/kakao_key_hash.txt"
               SAFE_PKG="${PKG//./_}"
               OUT="$CM_BUILD_DIR/kakao_key_hash_${SAFE_PKG}_${CM_BUILD_NUMBER}.txt"
@@ -446,6 +451,11 @@ workflows:
             KEY_HASH="$(keytool -exportcert -alias "$KEY_ALIAS" -keystore "$KEYSTORE_PATH" -storepass "$CM_KEYSTORE_PASSWORD" 2>/dev/null | openssl sha1 -binary | openssl base64 2>/dev/null || true)"
             if [ -n "$KEY_HASH" ]; then
               echo "KAKAO_KEY_HASH=$KEY_HASH"
+              # Embed into the JS bundle so the app can display it in DBG (helps unblock Kakao KeyHash registration).
+              export EXPO_PUBLIC_KAKAO_KEY_HASH="$KEY_HASH"
+              if [ -n "${CM_ENV:-}" ]; then
+                echo "EXPO_PUBLIC_KAKAO_KEY_HASH=$KEY_HASH" >> "$CM_ENV"
+              fi
               # Keep legacy single-line file for backwards-compat.
               echo "$KEY_HASH" > "$CM_BUILD_DIR/kakao_key_hash.txt"
               # Also write a traceable file to avoid confusion across builds/apps.

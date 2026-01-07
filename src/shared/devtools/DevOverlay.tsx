@@ -39,9 +39,10 @@ export function DevOverlay() {
       }
     })();
     const kakao = process.env.EXPO_PUBLIC_KAKAO_APP_KEY || process.env.KAKAO_APP_KEY || "";
+    const kakaoKeyHash = process.env.EXPO_PUBLIC_KAKAO_KEY_HASH || "";
     const webview = process.env.EXPO_PUBLIC_WEBVIEW_URL || "";
     const devtools = process.env.EXPO_PUBLIC_DEVTOOLS || (__DEV__ ? "dev" : "");
-    return { pkg, api, kakao, webview, devtools };
+    return { pkg, api, kakao, kakaoKeyHash, webview, devtools };
   }, []);
 
   useEffect(() => {
@@ -93,6 +94,9 @@ export function DevOverlay() {
             <Text style={styles.infoText}>webview: {runtimeInfo.webview || "(n/a)"}</Text>
             <Text style={styles.infoText}>
               kakao_app_key: {runtimeInfo.kakao || "(missing)"}
+            </Text>
+            <Text style={styles.infoText}>
+              kakao_key_hash: {runtimeInfo.kakaoKeyHash || "(missing)"}
             </Text>
             <Text style={styles.infoText}>devtools: {runtimeInfo.devtools || "(off)"}</Text>
           </View>
