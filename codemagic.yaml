@@ -117,6 +117,8 @@ workflows:
         APP_DIR: .
         NODE_ENV: "production"
         VC_BASE: 900000
+        # DEV observability rail (always on for internal APK builds)
+        EXPO_PUBLIC_DEVTOOLS: "1"
         # Internal test build uses the production package name to minimize Kakao/Play registration friction.
         # (If you need side-by-side install later, we can introduce a dedicated *.dev rail again.)
         DEV_ANDROID_PACKAGE: "kr.slicemind.dongdong.guardian"
@@ -134,6 +136,12 @@ workflows:
           include: true
       cancel_previous_builds: true
     scripts:
+      - name: Assert profile (SEALED)
+        script: |
+          if [ "${EXPO_PUBLIC_DEVTOOLS:-}" != "1" ]; then
+            echo "SEALED: guardian internal APK dev must run with EXPO_PUBLIC_DEVTOOLS=1"
+            exit 9
+          fi
       - name: Install dependencies (npm ci)
         script: |
           cd "$APP_DIR"
@@ -153,6 +161,8 @@ workflows:
             const vc=base + bn;
             j.expo=j.expo||{};
             j.expo.android=j.expo.android||{};
+            j.expo.extra=j.expo.extra||{};
+            j.expo.extra.devtools=true;
             j.expo.android.package=String(process.env.DEV_ANDROID_PACKAGE||j.expo.android.package);
             j.expo.android.versionCode=vc;
             fs.writeFileSync(p, JSON.stringify(j,null,2)+'\n');
@@ -314,10 +324,11 @@ workflows:
         - guardian-upload
       groups:
         - google_credentials
-        - dev
       vars:
         APP_DIR: .
         NODE_ENV: "production"
+        # SEALED: AAB stamp rail must never enable DEVTOOLS.
+        EXPO_PUBLIC_DEVTOOLS: "0"
         # Versioning (prevent Play upload failures due to non-increasing versionCode)
         VC_BASE: 200000
         # Public app config (keep builds deterministic even if Codemagic UI vars are missing)
@@ -338,6 +349,12 @@ workflows:
     # - Avoid wasting versionCode on every push.
     # - AAB rails are manual; dev APK rail is the only auto rail.
     scripts:
+      - name: Assert profile (SEALED)
+        script: |
+          if [ "${EXPO_PUBLIC_DEVTOOLS:-}" != "0" ]; then
+            echo "SEALED: guardian AAB must run with EXPO_PUBLIC_DEVTOOLS=0"
+            exit 9
+          fi
       - name: Install dependencies (npm ci)
         script: |
           cd "$APP_DIR"
@@ -363,6 +380,8 @@ workflows:
             if (!(Number.isFinite(vc) && vc > 0 && vc < 2100000000)) throw new Error('invalid versionCode='+vc);
             j.expo=j.expo||{};
             j.expo.android=j.expo.android||{};
+            j.expo.extra=j.expo.extra||{};
+            j.expo.extra.devtools=false;
             j.expo.android.versionCode=vc;
             fs.writeFileSync(p, JSON.stringify(j,null,2)+'\\n');
             console.log('[ci] VC_BASE='+base+' build_number='+bn);
@@ -626,6 +645,8 @@ workflows:
       vars:
         APP_DIR: .
         NODE_ENV: "production"
+        # Universal APK test rail is a DEV/QA rail (keep DBG enabled)
+        EXPO_PUBLIC_DEVTOOLS: "1"
         VC_BASE: 200000
         EXPO_PUBLIC_API_URL: "http://api.dongdong.io:3000/api/v1"
         # DEV API와 짝을 맞추기 위해 WebView는 dev-client를 사용 (guardian.dongdong.kr 준비 전)
@@ -637,6 +658,12 @@ workflows:
     # - Avoid wasting versionCode on every push.
     # - This workflow is manual; dev APK rail is the only auto rail.
     scripts:
+      - name: Assert profile (SEALED)
+        script: |
+          if [ "${EXPO_PUBLIC_DEVTOOLS:-}" != "1" ]; then
+            echo "SEALED: guardian AAB universal APK test must run with EXPO_PUBLIC_DEVTOOLS=1"
+            exit 9
+          fi
       - name: Install dependencies (npm ci)
         script: |
           cd "$APP_DIR"
