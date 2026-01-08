@@ -796,6 +796,19 @@ export function WebViewContainer({
                         setError(`WebView HTTP error.\nstatus=${status}\nURL=${String(u || url)}`);
                     }
                 }}
+                // Android WebView renderer can die under memory pressure; recover deterministically.
+                onRenderProcessGone={() => {
+                    if (DEVTOOLS_ENABLED) {
+                        devlog({ scope: 'SYS', level: 'error', message: 'webview: render process gone -> reload' });
+                    }
+                    setError(null);
+                    setLoading(true);
+                    try {
+                        webViewRef.current?.reload();
+                    } catch {
+                        // ignore
+                    }
+                }}
                 onError={handleError}
                 {...WEBVIEW_CONFIG}
                 style={{ flex: 1 }}

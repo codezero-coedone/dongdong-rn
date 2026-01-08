@@ -161,6 +161,8 @@ export const WEBVIEW_CONFIG = {
     // DEV/QA 결정성: 웹 캐시/서비스워커/스토리지로 인해 "화면이 그대로" 보이는 이슈가 자주 발생.
     // 우선은 캐시를 꺼서(그리고 토큰은 pre-inject) 항상 최신 WebView를 보이게 고정한다.
     cacheEnabled: false,
+    // Android: hard-disable WebView cache layer (prevents stale bundles / cache-related weirdness)
+    cacheMode: 'LOAD_NO_CACHE',
 
     /** WebView 세션 분리 (캐시/쿠키 영향 최소화) */
     incognito: true,
