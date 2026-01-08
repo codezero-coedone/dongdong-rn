@@ -281,9 +281,9 @@ export function WebViewContainer({
           if (!enabled) return;
           if (window.__ddDevtoolsInstalled) return;
           window.__ddDevtoolsInstalled = true;
-          var __ddAccessToken = (function() {
+          function currentToken() {
             try { return String(window.__ddAccessToken || localStorage.getItem('accessToken') || ''); } catch (e) { return ''; }
-          })();
+          }
           var __ddRidSeq = 0;
           function nextRid() {
             __ddRidSeq = (__ddRidSeq + 1) % 1000000;
@@ -365,7 +365,10 @@ export function WebViewContainer({
           }
 
           // One-time auth state ping (no token value).
-          post('WEB_AUTH_STATE', { hasToken: !!(__ddAccessToken && String(__ddAccessToken).trim()) });
+          try {
+            var t0 = currentToken();
+            post('WEB_AUTH_STATE', { hasToken: !!(t0 && String(t0).trim()) });
+          } catch (e) {}
 
           // fetch hook
           var _fetch = window.fetch;
@@ -390,13 +393,15 @@ export function WebViewContainer({
                 h = setHeader(h, 'X-DD-Request-Id', rid);
                 // Force Authorization from RN token to prevent initial 401 race.
                 // (Do NOT log the token value.)
-                if (__ddAccessToken && !hasAuth(h)) {
-                  h = setHeader(h, 'Authorization', 'Bearer ' + String(__ddAccessToken));
+                var tok = '';
+                try { tok = currentToken(); } catch (e0) { tok = ''; }
+                if (tok && !hasAuth(h)) {
+                  h = setHeader(h, 'Authorization', 'Bearer ' + String(tok));
                   __ddAuthAttached = 1;
                 }
                 init.headers = h;
               } catch (e) {}
-              post('WEB_FETCH_START', { rid: rid, method: method, url: u, auth: (__ddAccessToken ? 1 : 0), authAttached: __ddAuthAttached });
+              post('WEB_FETCH_START', { rid: rid, method: method, url: u, auth: (tok ? 1 : 0), authAttached: __ddAuthAttached });
               return _fetch.apply(this, arguments).then(function(res) {
                 var st = res && typeof res.status === 'number' ? res.status : null;
                 post('WEB_FETCH', { rid: rid, method: method, url: u, status: st, serverAction: isServerAction ? true : undefined });
@@ -438,8 +443,10 @@ export function WebViewContainer({
                 try { self.setRequestHeader('X-DD-Request-Id', meta.rid); } catch (e2) {}
                 // Force Authorization from RN token to prevent initial 401 race.
                 try {
-                  if (__ddAccessToken) {
-                    self.setRequestHeader('Authorization', 'Bearer ' + String(__ddAccessToken));
+                  var tok2 = '';
+                  try { tok2 = currentToken(); } catch (e0) { tok2 = ''; }
+                  if (tok2) {
+                    self.setRequestHeader('Authorization', 'Bearer ' + String(tok2));
                     meta.auth = 1;
                   }
                 } catch (e3) {}
