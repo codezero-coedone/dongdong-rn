@@ -19,6 +19,25 @@ import { Share } from 'react-native';
 export function useWebViewMessageHandler(injectJavaScript?: (script: string) => void) {
     const router = useRouter();
     const logout = useAuthStore((state) => state.logout);
+    const DEVTOOLS_ENABLED = Boolean(__DEV__ || process.env.EXPO_PUBLIC_DEVTOOLS === '1');
+
+    const sigLog = useCallback(
+        (
+            sig: number,
+            level: 'info' | 'warn' | 'error',
+            message: string,
+            meta?: Record<string, unknown>,
+        ) => {
+            if (!DEVTOOLS_ENABLED) return;
+            devlog({
+                scope: 'SIG',
+                level,
+                message: `SIG${sig} ${message}`,
+                meta: { sig, ...(meta || {}) },
+            });
+        },
+        [DEVTOOLS_ENABLED]
+    );
 
     /**
      * 네이티브 화면 이동
@@ -91,9 +110,8 @@ export function useWebViewMessageHandler(injectJavaScript?: (script: string) => 
      * 분석 이벤트 (추후 Analytics 서비스 연동)
      */
     const handleAnalytics = useCallback((payload: AnalyticsPayload) => {
-        // DEV/QA 관제: WebView 내부 fetch/XHR/에러를 RN DEV TRACE로 승격
-        const enabled = Boolean(__DEV__ || process.env.EXPO_PUBLIC_DEVTOOLS === '1');
-        if (!enabled) return;
+        // DEV/QA 관제: WebView 내부 fetch/XHR/에러를 RN DEV TRACE로 승격 + SIG 센서코드 부여
+        if (!DEVTOOLS_ENABLED) return;
 
         const ev = String(payload?.event || '');
         const props = (payload?.properties || {}) as Record<string, unknown>;
@@ -115,6 +133,19 @@ export function useWebViewMessageHandler(injectJavaScript?: (script: string) => 
         })();
 
         if (ev.startsWith('WEB_FETCH') || ev.startsWith('WEB_XHR')) {
+            // Sensor codes:
+            // - SIG401: Unauthorized (401)
+            // - SIG507: Server Action mismatch / forced reload
+            // - SIG904: web network error (fetch/xhr _ERR)
+            const sig =
+                status === 401
+                    ? 401
+                    : ev === 'WEB_SERVER_ACTION_RELOAD'
+                      ? 507
+                      : ev.endsWith('_ERR')
+                        ? 904
+                        : undefined;
+
             const msg = status != null
                 ? `web: ${rid ? `[rid=${rid}] ` : ''}${method} ${shortUrl} → ${status}`
                 : `web: ${rid ? `[rid=${rid}] ` : ''}${ev} ${method} ${shortUrl}`.trim();
@@ -132,16 +163,27 @@ export function useWebViewMessageHandler(injectJavaScript?: (script: string) => 
                     message: typeof props.message === 'string' ? props.message : undefined,
                 },
             });
+            if (typeof sig === 'number') {
+                sigLog(
+                    sig,
+                    sig === 401 ? 'warn' : sig === 507 ? 'warn' : 'error',
+                    'web event',
+                    { event: ev, rid: rid || undefined, method, url: shortUrl, status },
+                );
+            }
             return;
         }
 
         if (ev === 'WEB_ERROR') {
-            devlog({
-                scope: 'SYS',
-                level: 'error',
-                message: 'web: runtime error',
-                meta: props,
-            });
+            sigLog(901, 'error', 'web runtime error', props);
+            return;
+        }
+        if (ev === 'WEB_REJECT') {
+            sigLog(902, 'error', 'web unhandledrejection', props);
+            return;
+        }
+        if (ev === 'WEB_CONSOLE_ERROR') {
+            sigLog(903, 'error', 'web console.error', props);
             return;
         }
 
@@ -151,7 +193,7 @@ export function useWebViewMessageHandler(injectJavaScript?: (script: string) => 
             message: `web: ${ev || 'ANALYTICS'}`,
             meta: props,
         });
-    }, []);
+    }, [DEVTOOLS_ENABLED, sigLog]);
 
     /**
      * WebView 메시지 핸들러
