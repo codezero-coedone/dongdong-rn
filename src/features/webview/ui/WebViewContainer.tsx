@@ -4,8 +4,10 @@ import {
     WEBVIEW_URL,
     isAllowedUrl,
 } from '@/shared/config/webview';
+import { config } from '@/shared/config';
 import { devlog } from '@/shared/devtools/devlog';
 import { secureStorage } from '@/shared/lib/storage';
+import axios from 'axios';
 import React, { useCallback, useEffect } from 'react';
 import { ActivityIndicator, AppState, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -52,8 +54,13 @@ export function WebViewContainer({
 
     const storeToken = useAuthStore((state) => state.token);
     const user = useAuthStore((state) => state.user);
+    const logout = useAuthStore((state) => (state as any).logout);
     const DEVTOOLS_ENABLED = Boolean(__DEV__ || process.env.EXPO_PUBLIC_DEVTOOLS === '1');
     const [persistedToken, setPersistedToken] = React.useState<string | null>(null);
+    const [bootstrappingJwt, setBootstrappingJwt] = React.useState(false);
+    const lastRefreshAtRef = React.useRef(0);
+    const refreshInFlightRef = React.useRef(false);
+    const socialExchangeTriedRef = React.useRef(false);
 
     const looksJwt = useCallback((t: string | null | undefined): boolean => {
         if (!t) return false;
@@ -89,6 +96,122 @@ export function WebViewContainer({
         return null;
     }, [looksJwt, persistedToken, storeToken]);
 
+    const injectWebToken = useCallback(
+        (t: string) => {
+            try {
+                const script = `
+          (function() {
+            try { window.__ddAccessToken = ${JSON.stringify(t)}; } catch (e0) {}
+            try { localStorage.setItem('accessToken', ${JSON.stringify(t)}); } catch (e1) {}
+            try { window.dispatchEvent(new Event('dd-auth-token')); } catch (e2) {}
+          })();
+          true;
+        `;
+                webViewRef.current?.injectJavaScript(script);
+            } catch {
+                // ignore
+            }
+            try {
+                sendAuthToken({ accessToken: t });
+            } catch {
+                // ignore
+            }
+        },
+        [sendAuthToken, webViewRef]
+    );
+
+    const refreshWebAccessToken = useCallback(async (): Promise<string | null> => {
+        if (refreshInFlightRef.current) return null;
+        const now = Date.now();
+        // prevent refresh storms
+        if (now - lastRefreshAtRef.current < 8000) return null;
+        refreshInFlightRef.current = true;
+        lastRefreshAtRef.current = now;
+        try {
+            const refreshToken = await secureStorage.get('refresh_token');
+            if (!refreshToken) return null;
+
+            const rid = `rid-web-refresh-${Date.now()}`;
+            const response = await axios.post(
+                `${config.API_URL}/auth/refresh`,
+                { refresh_token: refreshToken },
+                { headers: { 'X-DD-Request-Id': rid } }
+            );
+            const data: any = (response as any)?.data?.data;
+            const access_token: string | undefined = data?.access_token;
+            const refresh_token: string | undefined = data?.refresh_token;
+            if (!looksJwt(access_token)) return null;
+
+            await secureStorage.setToken(String(access_token));
+            if (looksJwt(refresh_token)) {
+                await secureStorage.set('refresh_token', String(refresh_token));
+            }
+            setPersistedToken(String(access_token));
+            if (DEVTOOLS_ENABLED) {
+                devlog({ scope: 'SYS', level: 'info', message: `webview: token refreshed rid=${rid}` });
+            }
+            return String(access_token);
+        } catch (e: any) {
+            if (DEVTOOLS_ENABLED) {
+                devlog({
+                    scope: 'SYS',
+                    level: 'warn',
+                    message: 'webview: refresh failed',
+                    meta: { status: e?.response?.status, message: e?.response?.data?.message || e?.message },
+                });
+            }
+            return null;
+        } finally {
+            refreshInFlightRef.current = false;
+        }
+    }, [DEVTOOLS_ENABLED, looksJwt]);
+
+    // If authStore token is NOT a backend JWT (e.g., Kakao token), attempt a one-time server exchange to get JWT.
+    useEffect(() => {
+        if (token) return;
+        if (socialExchangeTriedRef.current) return;
+        const raw = typeof storeToken === 'string' ? storeToken.trim() : '';
+        if (!raw) return;
+        if (looksJwt(raw)) return;
+
+        socialExchangeTriedRef.current = true;
+        setBootstrappingJwt(true);
+        void (async () => {
+            try {
+                const rid = `rid-social-exchange-${Date.now()}`;
+                const res = await axios.post(
+                    `${config.API_URL}/auth/social`,
+                    { provider: 'KAKAO', accessToken: raw },
+                    { headers: { 'X-DD-Request-Id': rid } }
+                );
+                const data: any = (res as any)?.data?.data;
+                const access_token: string | undefined = data?.access_token;
+                const refresh_token: string | undefined = data?.refresh_token;
+                if (!looksJwt(access_token)) return;
+                await secureStorage.setToken(String(access_token));
+                if (looksJwt(refresh_token)) {
+                    await secureStorage.set('refresh_token', String(refresh_token));
+                }
+                setPersistedToken(String(access_token));
+                injectWebToken(String(access_token));
+                if (DEVTOOLS_ENABLED) {
+                    devlog({ scope: 'SYS', level: 'info', message: `webview: social exchange ok rid=${rid}` });
+                }
+            } catch (e: any) {
+                if (DEVTOOLS_ENABLED) {
+                    devlog({
+                        scope: 'SYS',
+                        level: 'warn',
+                        message: 'webview: social exchange failed',
+                        meta: { status: e?.response?.status, message: e?.response?.data?.message || e?.message },
+                    });
+                }
+            } finally {
+                setBootstrappingJwt(false);
+            }
+        })();
+    }, [DEVTOOLS_ENABLED, injectWebToken, looksJwt, storeToken, token]);
+
     // Some builds may ship without NativeWind/className wiring.
     // Always keep WebView container layout deterministic with explicit RN styles.
     const containerStyle = { flex: 1 } as const;
@@ -107,6 +230,14 @@ export function WebViewContainer({
     if (!token) {
         return (
             <SafeAreaView style={centerStyle}>
+                {bootstrappingJwt ? (
+                    <>
+                        <ActivityIndicator />
+                        <Text style={{ marginTop: 10, fontSize: 13, color: '#6B7280' }}>
+                            인증 동기화 중…
+                        </Text>
+                    </>
+                ) : null}
                 <Text style={{ fontSize: 16, fontWeight: '700', color: '#111', marginBottom: 10 }}>
                     로그인이 필요합니다
                 </Text>
@@ -142,6 +273,48 @@ export function WebViewContainer({
     const base = WEBVIEW_URL.replace(/\/+$/, '');
     const path = initialPath.startsWith('/') ? initialPath : `/${initialPath}`;
     const url = `${base}${path}`;
+
+    const handleMessageWithAuth = useCallback(
+        (event: { nativeEvent: { data: string } }) => {
+            try {
+                const raw = String(event?.nativeEvent?.data || '');
+                const data = raw ? JSON.parse(raw) : null;
+                const type = data?.type;
+                if (type === 'ANALYTICS') {
+                    const ev = String(data?.payload?.event || '');
+                    const props = data?.payload?.properties || {};
+                    const status = typeof props.status === 'number' ? props.status : undefined;
+                    const rid = typeof props.rid === 'string' ? props.rid : '';
+                    // Auto-heal: if web requests hit 401 while token is present, try refresh once then reload.
+                    if ((ev === 'WEB_FETCH' || ev === 'WEB_XHR') && status === 401) {
+                        if (DEVTOOLS_ENABLED) {
+                            devlog({
+                                scope: 'SYS',
+                                level: 'warn',
+                                message: `webview: 401 detected -> try refresh ${rid ? `rid=${rid}` : ''}`.trim(),
+                            });
+                        }
+                        void (async () => {
+                            const nt = await refreshWebAccessToken();
+                            if (nt && looksJwt(nt)) {
+                                injectWebToken(nt);
+                                try { webViewRef.current?.reload(); } catch {}
+                            } else {
+                                // Refresh failed: force logout to prevent infinite "dead" loop.
+                                try {
+                                    if (typeof logout === 'function') await logout();
+                                } catch {}
+                            }
+                        })();
+                    }
+                }
+            } catch {
+                // ignore
+            }
+            handleMessage(event);
+        },
+        [DEVTOOLS_ENABLED, handleMessage, injectWebToken, logout, looksJwt, refreshWebAccessToken, webViewRef]
+    );
 
     useEffect(() => {
         if (!DEVTOOLS_ENABLED) return;
@@ -623,7 +796,7 @@ export function WebViewContainer({
                 }}
                 onLoadEnd={handleLoadEnd}
                 injectedJavaScriptBeforeContentLoaded={injectedBeforeContentLoaded}
-                onMessage={handleMessage}
+                onMessage={handleMessageWithAuth}
                 onNavigationStateChange={handleNavigationStateChange}
                 onShouldStartLoadWithRequest={handleShouldStartLoad}
                 onHttpError={(e: any) => {
