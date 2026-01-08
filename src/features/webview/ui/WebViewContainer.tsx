@@ -6,6 +6,7 @@ import {
 } from '@/shared/config/webview';
 import { devlog } from '@/shared/devtools/devlog';
 import { secureStorage } from '@/shared/lib/storage';
+import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect } from 'react';
 import { ActivityIndicator, AppState, Linking, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -37,6 +38,7 @@ export function WebViewContainer({
     // - 401: web request unauthorized
     // - 507: renderer died / critical webview recover
     const { webViewRef, sendAuthToken, sendUserInfo, sendAppState } = useWebViewBridge();
+    const router = useRouter();
     const { handleMessage } = useWebViewMessageHandler((script) => {
         try {
             webViewRef.current?.injectJavaScript(script);
@@ -226,6 +228,13 @@ export function WebViewContainer({
                                     sigLog(401, 'info', 'refreshAuth(ok) -> reload', { rid: rid || undefined, reason: 'web-401' });
                                 } else {
                                     sigLog(401, 'error', 'refreshAuth(fail)', { rid: rid || undefined, reason: 'web-401' });
+                                    // Prevent "stuck" state: route back to native login.
+                                    try {
+                                        setLoading(false);
+                                        router.replace('/(auth)/login' as never);
+                                    } catch {
+                                        // ignore
+                                    }
                                 }
                             } finally {
                                 webRefreshInFlightRef.current = false;
@@ -238,7 +247,7 @@ export function WebViewContainer({
             }
             handleMessage(event);
         },
-        [handleMessage, injectWebToken, looksJwt, refreshAuth, sigLog, webViewRef]
+        [handleMessage, injectWebToken, looksJwt, refreshAuth, router, setLoading, sigLog, webViewRef]
     );
 
     useEffect(() => {
@@ -624,6 +633,13 @@ export function WebViewContainer({
                                         try { webViewRef.current?.reload(); } catch {}
                                     } else {
                                         sigLog(401, 'error', 'refreshAuth(fail)', { reason: 'auth-route' });
+                                        // Prevent "blocked but no-login" stuck: route to native login.
+                                        try {
+                                            setLoading(false);
+                                            router.replace('/(auth)/login' as never);
+                                        } catch {
+                                            // ignore
+                                        }
                                     }
                                 }
                             } finally {
@@ -654,6 +670,7 @@ export function WebViewContainer({
             injectWebToken,
             looksJwt,
             refreshAuth,
+            router,
             setError,
             setLoading,
             setPersistedToken,
