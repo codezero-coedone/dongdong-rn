@@ -349,6 +349,37 @@ export function WebViewContainer({
           window.addEventListener('error', function(e) {
             try { post('WEB_ERROR', { message: e && e.message ? String(e.message) : 'error', source: e && e.filename ? String(e.filename) : '', line: e && e.lineno ? e.lineno : null }); } catch (e2) {}
           });
+
+          // unhandled promise rejections
+          window.addEventListener('unhandledrejection', function(e) {
+            try {
+              var msg = '';
+              try { msg = String((e && e.reason && (e.reason.message || e.reason)) || 'unhandledrejection'); } catch (e2) {}
+              post('WEB_REJECT', { message: msg });
+            } catch (e3) {}
+          });
+
+          // console hooks (PII=0, truncate)
+          try {
+            var c = window.console || {};
+            function trunc(x) {
+              try {
+                var s = String(x == null ? '' : x);
+                if (s.length > 180) s = s.slice(0, 180) + '…';
+                return s;
+              } catch (e) { return ''; }
+            }
+            var _err = c.error;
+            c.error = function() {
+              try { post('WEB_CONSOLE_ERROR', { message: trunc(arguments && arguments[0]) }); } catch (e) {}
+              if (typeof _err === 'function') return _err.apply(c, arguments);
+            };
+            var _warn = c.warn;
+            c.warn = function() {
+              try { post('WEB_CONSOLE_WARN', { message: trunc(arguments && arguments[0]) }); } catch (e) {}
+              if (typeof _warn === 'function') return _warn.apply(c, arguments);
+            };
+          } catch (e) {}
         } catch (e) {}
       })();
       true;
@@ -420,16 +451,31 @@ export function WebViewContainer({
                 canGoForward: nav.canGoForward,
                 url: nav.url,
             });
+            if (DEVTOOLS_ENABLED) {
+                try {
+                    const short = String(nav.url || '').split('?')[0] || String(nav.url || '');
+                    devlog({ scope: 'SYS', level: 'info', message: `webview: nav url=${short}` });
+                } catch {
+                    // ignore
+                }
+            }
         },
-        [updateNavigation]
+        [DEVTOOLS_ENABLED, updateNavigation]
     );
 
     // ============================================
     // URL 허용 여부 확인
     // ============================================
     const handleShouldStartLoad = useCallback(
-        (request: { url: string }) => {
-            const ok = isAllowedUrl(request.url);
+        (request: any) => {
+            // IMPORTANT:
+            // - Only enforce URL allow/block on TOP frame navigations.
+            // - Some Android/iOS WebView implementations call this for subresources; blocking those can "kill" pages.
+            const isTopFrame =
+                request?.isTopFrame === false || request?.isMainFrame === false ? false : true;
+            if (!isTopFrame) return true;
+
+            const ok = isAllowedUrl(String(request?.url || ''));
             if (!ok) {
                 setError(
                     `차단된 이동입니다.\nURL=${request.url}\n\n(로그인/인증 페이지는 RN 네이티브에서만 가능합니다)`,
