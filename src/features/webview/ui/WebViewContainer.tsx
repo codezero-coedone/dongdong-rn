@@ -32,6 +32,10 @@ export function WebViewContainer({
     LoadingComponent,
     ErrorComponent,
 }: WebViewContainerProps) {
+    // DEV signal codes (our internal “sensor ids”)
+    // - 234: navigation blocked/auth-route bounce
+    // - 401: web request unauthorized
+    // - 507: renderer died / critical webview recover
     const { webViewRef, sendAuthToken, sendUserInfo, sendAppState } = useWebViewBridge();
     const { handleMessage } = useWebViewMessageHandler((script) => {
         try {
@@ -57,6 +61,19 @@ export function WebViewContainer({
     const [persistedToken, setPersistedToken] = React.useState<string | null>(null);
     const lastWeb401AtRef = React.useRef(0);
     const webRefreshInFlightRef = React.useRef(false);
+
+    const sigLog = useCallback(
+        (sig: number, level: 'info' | 'warn' | 'error', message: string, meta?: Record<string, unknown>) => {
+            if (!DEVTOOLS_ENABLED) return;
+            devlog({
+                scope: 'SIG',
+                level,
+                message: `SIG${sig} ${message}`,
+                meta: { sig, ...(meta || {}) },
+            });
+        },
+        [DEVTOOLS_ENABLED]
+    );
 
     const looksJwt = useCallback((t: string | null | undefined): boolean => {
         if (!t) return false;
@@ -194,15 +211,10 @@ export function WebViewContainer({
                         }
                         lastWeb401AtRef.current = now;
                         webRefreshInFlightRef.current = true;
-                        if (DEVTOOLS_ENABLED) {
-                            devlog({
-                                scope: 'SYS',
-                                level: 'warn',
-                                message: `webview: 401 detected -> try refresh ${rid ? `rid=${rid}` : ''}`.trim(),
-                            });
-                        }
+                        sigLog(401, 'warn', 'web 401 detected -> refreshAuth + reload', { rid: rid || undefined, event: ev });
                         void (async () => {
                             try {
+                                sigLog(401, 'warn', 'refreshAuth(start)', { rid: rid || undefined, reason: 'web-401' });
                                 const ok = typeof refreshAuth === 'function' ? await refreshAuth() : false;
                                 if (ok) {
                                     const nt = await secureStorage.getToken();
@@ -211,6 +223,9 @@ export function WebViewContainer({
                                         injectWebToken(nt);
                                         try { webViewRef.current?.reload(); } catch {}
                                     }
+                                    sigLog(401, 'info', 'refreshAuth(ok) -> reload', { rid: rid || undefined, reason: 'web-401' });
+                                } else {
+                                    sigLog(401, 'error', 'refreshAuth(fail)', { rid: rid || undefined, reason: 'web-401' });
                                 }
                             } finally {
                                 webRefreshInFlightRef.current = false;
@@ -223,7 +238,7 @@ export function WebViewContainer({
             }
             handleMessage(event);
         },
-        [DEVTOOLS_ENABLED, handleMessage, injectWebToken, looksJwt, refreshAuth, webViewRef]
+        [handleMessage, injectWebToken, looksJwt, refreshAuth, sigLog, webViewRef]
     );
 
     useEffect(() => {
@@ -565,6 +580,7 @@ export function WebViewContainer({
             try {
                 const lower = targetUrl.toLowerCase();
                 if (lower.startsWith('tel:') || lower.startsWith('mailto:') || lower.startsWith('sms:')) {
+                    sigLog(234, 'info', 'external scheme -> Linking.openURL', { url: lower.split('?')[0] });
                     void Linking.openURL(targetUrl).catch(() => {});
                     return false;
                 }
@@ -591,13 +607,12 @@ export function WebViewContainer({
                     if (!webRefreshInFlightRef.current && now - lastWeb401AtRef.current >= 8000) {
                         webRefreshInFlightRef.current = true;
                         lastWeb401AtRef.current = now;
-                        if (DEVTOOLS_ENABLED) {
-                            devlog({ scope: 'SYS', level: 'warn', message: `webview: auth-route nav -> try refresh path=${path}` });
-                        }
+                        sigLog(234, 'warn', 'auth-route nav -> try refreshAuth + reload', { path });
                         setLoading(true);
                         void (async () => {
                             try {
                                 if (typeof refreshAuth === 'function') {
+                                    sigLog(401, 'warn', 'refreshAuth(start)', { reason: 'auth-route' });
                                     const ok = await refreshAuth();
                                     if (ok) {
                                         const nt = await secureStorage.getToken();
@@ -605,7 +620,10 @@ export function WebViewContainer({
                                             setPersistedToken(nt);
                                             injectWebToken(nt);
                                         }
+                                        sigLog(401, 'info', 'refreshAuth(ok) -> reload', { reason: 'auth-route' });
                                         try { webViewRef.current?.reload(); } catch {}
+                                    } else {
+                                        sigLog(401, 'error', 'refreshAuth(fail)', { reason: 'auth-route' });
                                     }
                                 }
                             } finally {
@@ -621,6 +639,7 @@ export function WebViewContainer({
 
             const ok = isAllowedUrl(targetUrl);
             if (!ok) {
+                sigLog(234, 'warn', 'navigation blocked', { url: String(targetUrl || '').split('?')[0] });
                 setError(
                     `차단된 이동입니다.\nURL=${request.url}\n\n(로그인/인증 페이지는 RN 네이티브에서만 가능합니다)`,
                 );
@@ -639,6 +658,7 @@ export function WebViewContainer({
             setLoading,
             setPersistedToken,
             webViewRef,
+            sigLog,
         ]
     );
 
@@ -798,9 +818,7 @@ export function WebViewContainer({
                 }}
                 // Android WebView renderer can die under memory pressure; recover deterministically.
                 onRenderProcessGone={() => {
-                    if (DEVTOOLS_ENABLED) {
-                        devlog({ scope: 'SYS', level: 'error', message: 'webview: render process gone -> reload' });
-                    }
+                    sigLog(507, 'error', 'render process gone -> reload');
                     setError(null);
                     setLoading(true);
                     try {
