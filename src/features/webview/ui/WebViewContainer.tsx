@@ -32,7 +32,13 @@ export function WebViewContainer({
     ErrorComponent,
 }: WebViewContainerProps) {
     const { webViewRef, sendAuthToken, sendUserInfo, sendAppState } = useWebViewBridge();
-    const { handleMessage } = useWebViewMessageHandler();
+    const { handleMessage } = useWebViewMessageHandler((script) => {
+        try {
+            webViewRef.current?.injectJavaScript(script);
+        } catch {
+            // ignore
+        }
+    });
     const {
         isLoading,
         error,
@@ -435,6 +441,19 @@ export function WebViewContainer({
     // ============================================
     useEffect(() => {
         return () => {
+            // Enforce "token owner = RN": clear token shadow-copy in WebView runtime on unmount.
+            try {
+                const script = `
+          (function() {
+            try { localStorage.removeItem('accessToken'); } catch (e) {}
+            try { window.__ddAccessToken = ''; } catch (e) {}
+          })();
+          true;
+        `;
+                webViewRef.current?.injectJavaScript(script);
+            } catch {
+                // ignore
+            }
             reset();
         };
     }, [reset]);

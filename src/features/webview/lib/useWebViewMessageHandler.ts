@@ -16,7 +16,7 @@ import { Share } from 'react-native';
 /**
  * WebView에서 오는 메시지 처리 훅
  */
-export function useWebViewMessageHandler() {
+export function useWebViewMessageHandler(injectJavaScript?: (script: string) => void) {
     const router = useRouter();
     const logout = useAuthStore((state) => state.logout);
 
@@ -34,9 +34,28 @@ export function useWebViewMessageHandler() {
      * 로그아웃 처리
      */
     const handleLogout = useCallback(async () => {
+        // Enforce "token owner = RN": clear token in web runtime first, then logout RN.
+        try {
+            const script = `
+        (function() {
+          try { localStorage.removeItem('accessToken'); } catch (e) {}
+          try { window.__ddAccessToken = ''; } catch (e) {}
+          try {
+            var msg = { type: 'ANALYTICS', payload: { event: 'WEB_AUTH_CLEAR', properties: { ok: true } }, timestamp: Date.now() };
+            if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
+              window.ReactNativeWebView.postMessage(JSON.stringify(msg));
+            }
+          } catch (e) {}
+        })();
+        true;
+      `;
+            if (typeof injectJavaScript === 'function') injectJavaScript(script);
+        } catch {
+            // ignore
+        }
         await logout();
         router.replace('/(auth)/login');
-    }, [logout, router]);
+    }, [injectJavaScript, logout, router]);
 
     /**
      * 공유 기능
