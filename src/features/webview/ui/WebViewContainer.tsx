@@ -234,6 +234,7 @@ export function WebViewContainer({
                 isServerAction = !!(hv && String(hv).trim());
               } catch (e) {}
               // Attach rid header (CORS must allow X-DD-Request-Id)
+              var __ddAuthAttached = 0;
               try {
                 if (!init) init = {};
                 var h = init.headers || {};
@@ -242,10 +243,11 @@ export function WebViewContainer({
                 // (Do NOT log the token value.)
                 if (__ddAccessToken && !hasAuth(h)) {
                   h = setHeader(h, 'Authorization', 'Bearer ' + String(__ddAccessToken));
+                  __ddAuthAttached = 1;
                 }
                 init.headers = h;
               } catch (e) {}
-              post('WEB_FETCH_START', { rid: rid, method: method, url: u, auth: (__ddAccessToken ? 1 : 0) });
+              post('WEB_FETCH_START', { rid: rid, method: method, url: u, auth: (__ddAccessToken ? 1 : 0), authAttached: __ddAuthAttached });
               return _fetch.apply(this, arguments).then(function(res) {
                 var st = res && typeof res.status === 'number' ? res.status : null;
                 post('WEB_FETCH', { rid: rid, method: method, url: u, status: st, serverAction: isServerAction ? true : undefined });
@@ -287,7 +289,10 @@ export function WebViewContainer({
                 try { self.setRequestHeader('X-DD-Request-Id', meta.rid); } catch (e2) {}
                 // Force Authorization from RN token to prevent initial 401 race.
                 try {
-                  if (__ddAccessToken) self.setRequestHeader('Authorization', 'Bearer ' + String(__ddAccessToken));
+                  if (__ddAccessToken) {
+                    self.setRequestHeader('Authorization', 'Bearer ' + String(__ddAccessToken));
+                    meta.auth = 1;
+                  }
                 } catch (e3) {}
                 post('WEB_XHR_START', meta);
                 self.addEventListener('loadend', function() {
