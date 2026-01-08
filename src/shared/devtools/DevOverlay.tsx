@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Constants from "expo-constants";
 
-import { clearDevLogs, DevLogEntry, getDevLogs, subscribeDevLogs } from "./devlog";
+import { clearDevLogs, devlog, DevLogEntry, getDevLogs, subscribeDevLogs } from "./devlog";
 import { config } from "@/shared/config";
 import { useAuthStore } from "@/features/auth";
+import { apiClient } from "@/shared/api/client";
 
 function fmtTime(ts: number): string {
   try {
@@ -27,6 +28,7 @@ export function DevOverlay() {
   const [open, setOpen] = useState(false);
   const [logs, setLogs] = useState<DevLogEntry[]>(enabled ? getDevLogs() : []);
   const logout = useAuthStore((s: any) => s.logout);
+  const [busySeed, setBusySeed] = useState(false);
 
   const runtimeInfo = useMemo(() => {
     const pkg =
@@ -60,6 +62,72 @@ export function DevOverlay() {
   }, [last]);
 
   if (!enabled) return null;
+
+  const seedCareRequest = useCallback(async () => {
+    if (busySeed) return;
+    setBusySeed(true);
+    try {
+      devlog({ scope: "SYS", level: "info", message: "seed care-request: start" });
+
+      // 1) create patient (required fields only)
+      const birth = "1950-01-15";
+      const patientRes = await apiClient.post("/patients", {
+        name: "DEV 환자",
+        birthDate: birth,
+        gender: "MALE",
+        mobilityLevel: "PARTIAL_ASSIST",
+        diagnosis: "DEV",
+        notes: "DEV seed (guardian)",
+      });
+      const patient = (patientRes as any)?.data?.data ?? (patientRes as any)?.data;
+      const patientId = String(patient?.id || "");
+      if (!patientId) {
+        devlog({ scope: "SYS", level: "error", message: "seed care-request: patientId missing" });
+        Alert.alert("실패", "환자 생성에 실패했습니다. (patientId 없음)");
+        return;
+      }
+      devlog({ scope: "SYS", level: "info", message: `seed care-request: patientId=${patientId}` });
+
+      // 2) create care request (job)
+      const now = Date.now();
+      const start = new Date(now + 30 * 60 * 1000);
+      const end = new Date(now + 4 * 60 * 60 * 1000);
+      const reqRes = await apiClient.post("/care-requests", {
+        patientId,
+        careType: "HOSPITAL",
+        startDate: start.toISOString(),
+        endDate: end.toISOString(),
+        location: "DEV 병원",
+        requirements: "DEV seed (guardian)",
+        dailyRate: 150000,
+      });
+      const req = (reqRes as any)?.data?.data ?? (reqRes as any)?.data;
+      const requestId = String(req?.id || "");
+      if (!requestId) {
+        devlog({ scope: "SYS", level: "error", message: "seed care-request: requestId missing" });
+        Alert.alert("실패", "간병요청 생성에 실패했습니다. (requestId 없음)");
+        return;
+      }
+
+      devlog({ scope: "SYS", level: "info", message: `seed care-request: ok id=${requestId}` });
+      Alert.alert(
+        "생성 완료",
+        `간병요청(공고) 1개 생성됨\nid=${requestId}\n\n이제 Caregiver 앱에서 /jobs 새로고침 → 지원하면 매칭이 생성됩니다.`,
+      );
+    } catch (e: any) {
+      const status = e?.response?.status;
+      const msg = e?.response?.data?.message || e?.message || String(e);
+      devlog({
+        scope: "SYS",
+        level: "error",
+        message: "seed care-request: failed",
+        meta: { status, message: msg },
+      });
+      Alert.alert("실패", `간병요청 생성 실패\n${status ? `status=${status}\n` : ""}${String(msg)}`);
+    } finally {
+      setBusySeed(false);
+    }
+  }, [busySeed]);
 
   return (
     <>
@@ -126,6 +194,23 @@ export function DevOverlay() {
               kakao_key_hash: {runtimeInfo.kakaoKeyHash || "(missing)"}
             </Text>
             <Text style={styles.infoText}>devtools: {runtimeInfo.devtools || "(off)"}</Text>
+          </View>
+
+          <View style={styles.actions}>
+            <Text style={styles.actionsTitle}>DEV ACTIONS (guardian)</Text>
+            <Pressable
+              style={[styles.actionBtn, busySeed && styles.actionBtnDisabled]}
+              onPress={seedCareRequest}
+              disabled={busySeed}
+            >
+              <Text style={styles.actionBtnText}>
+                {busySeed ? "생성 중…" : "DEV: 간병요청(공고) 1개 생성"}
+              </Text>
+            </Pressable>
+            <Text style={styles.actionsHint}>
+              - WebView가 죽어도 매칭 레일(/care-requests → caregiver /jobs → apply → /my/matches)을
+              살리기 위한 DEV 우회 버튼입니다.
+            </Text>
           </View>
 
           <View style={styles.legend}>
@@ -215,6 +300,24 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   infoText: { color: "rgba(255,255,255,0.85)", fontSize: 12, lineHeight: 16 },
+  actions: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.08)",
+    gap: 10,
+  },
+  actionsTitle: { color: "#fff", fontSize: 12, fontWeight: "900" },
+  actionBtn: {
+    backgroundColor: "#10B981",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  actionBtnDisabled: { opacity: 0.6 },
+  actionBtnText: { color: "#04100B", fontWeight: "900" },
+  actionsHint: { color: "rgba(255,255,255,0.65)", fontSize: 12, lineHeight: 16 },
   body: { flex: 1 },
   bodyContent: { padding: 16, gap: 10 },
   row: {
