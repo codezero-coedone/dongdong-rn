@@ -5,6 +5,7 @@ import {
     isAllowedUrl,
 } from '@/shared/config/webview';
 import { devlog } from '@/shared/devtools/devlog';
+import { secureStorage } from '@/shared/lib/storage';
 import React, { useCallback, useEffect } from 'react';
 import { ActivityIndicator, AppState, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -49,9 +50,44 @@ export function WebViewContainer({
         reset,
     } = useWebViewStore();
 
-    const token = useAuthStore((state) => state.token);
+    const storeToken = useAuthStore((state) => state.token);
     const user = useAuthStore((state) => state.user);
     const DEVTOOLS_ENABLED = Boolean(__DEV__ || process.env.EXPO_PUBLIC_DEVTOOLS === '1');
+    const [persistedToken, setPersistedToken] = React.useState<string | null>(null);
+
+    const looksJwt = useCallback((t: string | null | undefined): boolean => {
+        if (!t) return false;
+        const s = String(t).trim();
+        if (!s) return false;
+        // JWT shape: header.payload.signature (3 dot-separated parts)
+        return s.split('.').length === 3;
+    }, []);
+
+    // Token source of truth for API/WebView: SecureStore token (auth_token) / JWT only.
+    // - Prevents injecting Kakao OAuth tokens or garbage into backend-protected APIs (causes 401 loops).
+    useEffect(() => {
+        let alive = true;
+        (async () => {
+            try {
+                const t = await secureStorage.getToken();
+                if (!alive) return;
+                setPersistedToken(typeof t === 'string' ? t : null);
+            } catch {
+                if (!alive) return;
+                setPersistedToken(null);
+            }
+        })();
+        return () => {
+            alive = false;
+        };
+    }, [storeToken]);
+
+    const token = React.useMemo(() => {
+        // Prefer a JWT-looking token only.
+        if (looksJwt(storeToken)) return String(storeToken).trim();
+        if (looksJwt(persistedToken)) return String(persistedToken).trim();
+        return null;
+    }, [looksJwt, persistedToken, storeToken]);
 
     // Some builds may ship without NativeWind/className wiring.
     // Always keep WebView container layout deterministic with explicit RN styles.
@@ -93,6 +129,12 @@ export function WebViewContainer({
                 >
                     <Text style={{ color: '#fff', fontWeight: '700' }}>확인</Text>
                 </Pressable>
+                {DEVTOOLS_ENABLED && (
+                    <Text style={{ marginTop: 12, fontSize: 12, color: '#9CA3AF' }}>
+                        DBG: token(jwt)=0 store={looksJwt(storeToken) ? 'jwt' : storeToken ? 'non-jwt' : 'null'} secure=
+                        {looksJwt(persistedToken) ? 'jwt' : persistedToken ? 'non-jwt' : 'null'}
+                    </Text>
+                )}
             </SafeAreaView>
         );
     }
