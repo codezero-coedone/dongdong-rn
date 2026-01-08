@@ -113,8 +113,10 @@ export function WebViewContainer({
         ? `
       (function() {
         try {
-          localStorage.setItem('accessToken', ${JSON.stringify(token)});
-          window.dispatchEvent(new Event('dd-auth-token'));
+          var __ddAccessToken = ${JSON.stringify(token)};
+          try { window.__ddAccessToken = __ddAccessToken; } catch (e0) {}
+          try { localStorage.setItem('accessToken', __ddAccessToken); } catch (e1) {}
+          try { window.dispatchEvent(new Event('dd-auth-token')); } catch (e2) {}
         } catch (e) {}
       })();
       (function() {
@@ -124,6 +126,9 @@ export function WebViewContainer({
           if (!enabled) return;
           if (window.__ddDevtoolsInstalled) return;
           window.__ddDevtoolsInstalled = true;
+          var __ddAccessToken = (function() {
+            try { return String(window.__ddAccessToken || localStorage.getItem('accessToken') || ''); } catch (e) { return ''; }
+          })();
           var __ddRidSeq = 0;
           function nextRid() {
             __ddRidSeq = (__ddRidSeq + 1) % 1000000;
@@ -168,6 +173,45 @@ export function WebViewContainer({
             return '';
           }
 
+          function hasAuth(headers) {
+            try {
+              var v = getHeaderValue(headers, 'authorization');
+              return !!(v && String(v).trim());
+            } catch (e) {
+              return false;
+            }
+          }
+
+          function setHeader(headers, key, value) {
+            if (!headers) return headers;
+            try {
+              if (typeof headers.set === 'function') {
+                // Headers object
+                headers.set(key, value);
+                return headers;
+              }
+            } catch (e) {}
+            try {
+              if (typeof headers.append === 'function') {
+                headers.append(key, value);
+                return headers;
+              }
+            } catch (e) {}
+            try {
+              if (Array.isArray(headers)) {
+                headers.push([key, value]);
+                return headers;
+              }
+            } catch (e) {}
+            try {
+              headers[key] = value;
+            } catch (e) {}
+            return headers;
+          }
+
+          // One-time auth state ping (no token value).
+          post('WEB_AUTH_STATE', { hasToken: !!(__ddAccessToken && String(__ddAccessToken).trim()) });
+
           // fetch hook
           var _fetch = window.fetch;
           if (typeof _fetch === 'function') {
@@ -187,16 +231,15 @@ export function WebViewContainer({
               try {
                 if (!init) init = {};
                 var h = init.headers || {};
-                if (h && typeof h.append === 'function') {
-                  h.append('X-DD-Request-Id', rid);
-                } else if (Array.isArray(h)) {
-                  h.push(['X-DD-Request-Id', rid]);
-                } else {
-                  h['X-DD-Request-Id'] = rid;
+                h = setHeader(h, 'X-DD-Request-Id', rid);
+                // Force Authorization from RN token to prevent initial 401 race.
+                // (Do NOT log the token value.)
+                if (__ddAccessToken && !hasAuth(h)) {
+                  h = setHeader(h, 'Authorization', 'Bearer ' + String(__ddAccessToken));
                 }
                 init.headers = h;
               } catch (e) {}
-              post('WEB_FETCH_START', { rid: rid, method: method, url: u });
+              post('WEB_FETCH_START', { rid: rid, method: method, url: u, auth: (__ddAccessToken ? 1 : 0) });
               return _fetch.apply(this, arguments).then(function(res) {
                 var st = res && typeof res.status === 'number' ? res.status : null;
                 post('WEB_FETCH', { rid: rid, method: method, url: u, status: st, serverAction: isServerAction ? true : undefined });
@@ -236,6 +279,10 @@ export function WebViewContainer({
               try {
                 var meta = self.__dd || { rid: nextRid(), method: 'GET', url: '' };
                 try { self.setRequestHeader('X-DD-Request-Id', meta.rid); } catch (e2) {}
+                // Force Authorization from RN token to prevent initial 401 race.
+                try {
+                  if (__ddAccessToken) self.setRequestHeader('Authorization', 'Bearer ' + String(__ddAccessToken));
+                } catch (e3) {}
                 post('WEB_XHR_START', meta);
                 self.addEventListener('loadend', function() {
                   try { post('WEB_XHR', { rid: meta.rid, method: meta.method, url: meta.url, status: self.status }); } catch (e) {}

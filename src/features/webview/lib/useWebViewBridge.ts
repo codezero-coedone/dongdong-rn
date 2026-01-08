@@ -26,7 +26,13 @@ export function useWebViewBridge() {
         const json = JSON.stringify(message);
         const script = `
       (function() {
-        window.postMessage(${JSON.stringify(json)}, '*');
+        try {
+          // Post an object (not a JSON string) so web side can consume it deterministically.
+          window.postMessage(${json}, '*');
+        } catch (e) {
+          // Fallback: post a JSON string once (NOT double-stringified).
+          try { window.postMessage(${JSON.stringify(json)}, '*'); } catch (e2) {}
+        }
       })();
       true;
     `;
