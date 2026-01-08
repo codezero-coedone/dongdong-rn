@@ -7,7 +7,7 @@ import {
 import { devlog } from '@/shared/devtools/devlog';
 import { secureStorage } from '@/shared/lib/storage';
 import React, { useCallback, useEffect } from 'react';
-import { ActivityIndicator, AppState, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Linking, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
 import { useWebViewBridge } from '../lib/useWebViewBridge';
@@ -558,7 +558,68 @@ export function WebViewContainer({
                 request?.isTopFrame === false || request?.isMainFrame === false ? false : true;
             if (!isTopFrame) return true;
 
-            const ok = isAllowedUrl(String(request?.url || ''));
+            const targetUrl = String(request?.url || '');
+
+            // External schemes should be handled by RN, not blocked as "errors".
+            // (Example: tel: links in web UI)
+            try {
+                const lower = targetUrl.toLowerCase();
+                if (lower.startsWith('tel:') || lower.startsWith('mailto:') || lower.startsWith('sms:')) {
+                    void Linking.openURL(targetUrl).catch(() => {});
+                    return false;
+                }
+            } catch {
+                // ignore
+            }
+
+            // If the web app tries to navigate to auth routes (/login, /auth, /signup, /onboarding),
+            // do NOT hard-block into an error screen. Try SSOT refreshAuth and reload.
+            try {
+                const m = targetUrl.match(/^https?:\/\/([^\/?#]+)(\/[^?#]*)?/i);
+                const path = m?.[2] || '/';
+                const isAuthRoute =
+                    path === '/login' ||
+                    path.startsWith('/login/') ||
+                    path === '/auth' ||
+                    path.startsWith('/auth/') ||
+                    path === '/signup' ||
+                    path.startsWith('/signup/') ||
+                    path === '/onboarding' ||
+                    path.startsWith('/onboarding/');
+                if (isAuthRoute) {
+                    const now = Date.now();
+                    if (!webRefreshInFlightRef.current && now - lastWeb401AtRef.current >= 8000) {
+                        webRefreshInFlightRef.current = true;
+                        lastWeb401AtRef.current = now;
+                        if (DEVTOOLS_ENABLED) {
+                            devlog({ scope: 'SYS', level: 'warn', message: `webview: auth-route nav -> try refresh path=${path}` });
+                        }
+                        setLoading(true);
+                        void (async () => {
+                            try {
+                                if (typeof refreshAuth === 'function') {
+                                    const ok = await refreshAuth();
+                                    if (ok) {
+                                        const nt = await secureStorage.getToken();
+                                        if (looksJwt(nt)) {
+                                            setPersistedToken(nt);
+                                            injectWebToken(nt);
+                                        }
+                                        try { webViewRef.current?.reload(); } catch {}
+                                    }
+                                }
+                            } finally {
+                                webRefreshInFlightRef.current = false;
+                            }
+                        })();
+                    }
+                    return false;
+                }
+            } catch {
+                // ignore
+            }
+
+            const ok = isAllowedUrl(targetUrl);
             if (!ok) {
                 setError(
                     `차단된 이동입니다.\nURL=${request.url}\n\n(로그인/인증 페이지는 RN 네이티브에서만 가능합니다)`,
@@ -569,7 +630,16 @@ export function WebViewContainer({
             }
             return ok;
         },
-        [DEVTOOLS_ENABLED, setError]
+        [
+            DEVTOOLS_ENABLED,
+            injectWebToken,
+            looksJwt,
+            refreshAuth,
+            setError,
+            setLoading,
+            setPersistedToken,
+            webViewRef,
+        ]
     );
 
     // ============================================
