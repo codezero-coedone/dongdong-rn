@@ -132,7 +132,7 @@ workflows:
       events:
         - push
       branch_patterns:
-        - pattern: main
+        - pattern: dev
           include: true
       cancel_previous_builds: true
     scripts:
