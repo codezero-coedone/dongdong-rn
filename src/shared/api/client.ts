@@ -233,9 +233,13 @@ async function refreshToken(): Promise<string | null> {
     if (!refreshToken) return null;
 
     // Backend contract: POST /auth/refresh { refresh_token } -> { status, message, data: { access_token, refresh_token } }
-    const response = await axios.post(`${config.API_URL}/auth/refresh`, {
-      refresh_token: refreshToken,
-    });
+    // Send deterministic JSON string to avoid backend 400 "Body is not valid JSON"
+    // in environments where request transforms break object serialization.
+    const response = await axios.post(
+      `${config.API_URL}/auth/refresh`,
+      JSON.stringify({ refresh_token: refreshToken }),
+      { headers: { "Content-Type": "application/json" } },
+    );
 
     const data: any = (response as any)?.data?.data;
     const access_token: string | undefined = data?.access_token;

@@ -4,6 +4,7 @@ import {
     WEBVIEW_URL,
     isAllowedUrl,
 } from '@/shared/config/webview';
+import { config } from '@/shared/config';
 import { devlog } from '@/shared/devtools/devlog';
 import { secureStorage } from '@/shared/lib/storage';
 import { useRouter } from 'expo-router';
@@ -58,7 +59,7 @@ export function WebViewContainer({
 
     const storeToken = useAuthStore((state) => state.token);
     const user = useAuthStore((state) => state.user);
-    const refreshAuth = useAuthStore((state) => (state as any).refreshAuth);
+    const setStoreToken = useAuthStore((state) => (state as any).setToken);
     const DEVTOOLS_ENABLED = Boolean(__DEV__ || process.env.EXPO_PUBLIC_DEVTOOLS === '1');
     const [persistedToken, setPersistedToken] = React.useState<string | null>(null);
     const lastWeb401AtRef = React.useRef(0);
@@ -133,6 +134,70 @@ export function WebViewContainer({
             }
         },
         [sendAuthToken, webViewRef]
+    );
+
+    const clearWebToken = useCallback(() => {
+        try {
+            const script = `
+        (function() {
+          try { localStorage.removeItem('accessToken'); } catch (e1) {}
+          try { window.__ddAccessToken = ''; } catch (e2) {}
+        })();
+        true;
+      `;
+            webViewRef.current?.injectJavaScript(script);
+        } catch {
+            // ignore
+        }
+    }, [webViewRef]);
+
+    const refreshDeterministic = useCallback(
+        async (meta?: { rid?: string; reason?: string }): Promise<string | null> => {
+            const rid = meta?.rid ? String(meta.rid) : '';
+            const reason = meta?.reason ? String(meta.reason) : '';
+            try {
+                const rt = await secureStorage.get('refresh_token');
+                if (!rt || !String(rt).trim()) return null;
+
+                // Always send valid JSON to avoid backend 400 "Body is not valid JSON".
+                const res = await fetch(`${config.API_URL}/auth/refresh`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(rid ? { 'X-DD-Request-Id': rid } : {}),
+                    },
+                    body: JSON.stringify({ refresh_token: String(rt) }),
+                });
+
+                const json = await res.json().catch(() => null);
+                const data = (json as any)?.data;
+                const access_token = data?.access_token;
+                const refresh_token = data?.refresh_token;
+
+                if (!res.ok) {
+                    sigLog(401, 'warn', 'refreshDeterministic http-fail', {
+                        rid: rid || undefined,
+                        reason: reason || undefined,
+                        status: res.status,
+                    });
+                    return null;
+                }
+                if (typeof access_token !== 'string' || !looksJwt(access_token)) return null;
+                if (typeof refresh_token !== 'string' || !refresh_token.trim()) return null;
+
+                await secureStorage.setToken(access_token.trim());
+                await secureStorage.set('refresh_token', refresh_token.trim());
+                try {
+                    if (typeof setStoreToken === 'function') setStoreToken(access_token.trim());
+                } catch {
+                    // ignore
+                }
+                return access_token.trim();
+            } catch {
+                return null;
+            }
+        },
+        [looksJwt, setStoreToken, sigLog]
     );
 
     // Some builds may ship without NativeWind/className wiring.
@@ -216,18 +281,16 @@ export function WebViewContainer({
                         sigLog(401, 'warn', 'web 401 detected -> refreshAuth + reload', { rid: rid || undefined, event: ev });
                         void (async () => {
                             try {
-                                sigLog(401, 'warn', 'refreshAuth(start)', { rid: rid || undefined, reason: 'web-401' });
-                                const ok = typeof refreshAuth === 'function' ? await refreshAuth() : false;
-                                if (ok) {
-                                    const nt = await secureStorage.getToken();
-                                    if (looksJwt(nt)) {
-                                        setPersistedToken(nt);
-                                        injectWebToken(nt);
-                                        try { webViewRef.current?.reload(); } catch {}
-                                    }
-                                    sigLog(401, 'info', 'refreshAuth(ok) -> reload', { rid: rid || undefined, reason: 'web-401' });
+                                sigLog(401, 'warn', 'refreshDeterministic(start)', { rid: rid || undefined, reason: 'web-401' });
+                                const nt = await refreshDeterministic({ rid, reason: 'web-401' });
+                                if (looksJwt(nt)) {
+                                    setPersistedToken(nt);
+                                    injectWebToken(nt);
+                                    try { webViewRef.current?.reload(); } catch {}
+                                    sigLog(401, 'info', 'refreshDeterministic(ok) -> reload', { rid: rid || undefined, reason: 'web-401' });
                                 } else {
-                                    sigLog(401, 'error', 'refreshAuth(fail)', { rid: rid || undefined, reason: 'web-401' });
+                                    sigLog(401, 'error', 'refreshDeterministic(fail)', { rid: rid || undefined, reason: 'web-401' });
+                                    clearWebToken();
                                     // Prevent "stuck" state: route back to native login.
                                     try {
                                         setLoading(false);
@@ -247,7 +310,7 @@ export function WebViewContainer({
             }
             handleMessage(event);
         },
-        [handleMessage, injectWebToken, looksJwt, refreshAuth, router, setLoading, sigLog, webViewRef]
+        [clearWebToken, handleMessage, injectWebToken, looksJwt, refreshDeterministic, router, setLoading, sigLog, webViewRef]
     );
 
     useEffect(() => {
@@ -627,26 +690,22 @@ export function WebViewContainer({
                         setLoading(true);
                         void (async () => {
                             try {
-                                if (typeof refreshAuth === 'function') {
-                                    sigLog(401, 'warn', 'refreshAuth(start)', { reason: 'auth-route' });
-                                    const ok = await refreshAuth();
-                                    if (ok) {
-                                        const nt = await secureStorage.getToken();
-                                        if (looksJwt(nt)) {
-                                            setPersistedToken(nt);
-                                            injectWebToken(nt);
-                                        }
-                                        sigLog(401, 'info', 'refreshAuth(ok) -> reload', { reason: 'auth-route' });
-                                        try { webViewRef.current?.reload(); } catch {}
-                                    } else {
-                                        sigLog(401, 'error', 'refreshAuth(fail)', { reason: 'auth-route' });
-                                        // Prevent "blocked but no-login" stuck: route to native login.
-                                        try {
-                                            setLoading(false);
-                                            router.replace('/(auth)/login' as never);
-                                        } catch {
-                                            // ignore
-                                        }
+                                sigLog(401, 'warn', 'refreshDeterministic(start)', { reason: 'auth-route' });
+                                const nt = await refreshDeterministic({ reason: 'auth-route' });
+                                if (looksJwt(nt)) {
+                                    setPersistedToken(nt);
+                                    injectWebToken(nt);
+                                    sigLog(401, 'info', 'refreshDeterministic(ok) -> reload', { reason: 'auth-route' });
+                                    try { webViewRef.current?.reload(); } catch {}
+                                } else {
+                                    sigLog(401, 'error', 'refreshDeterministic(fail)', { reason: 'auth-route' });
+                                    clearWebToken();
+                                    // Prevent "blocked but no-login" stuck: route to native login.
+                                    try {
+                                        setLoading(false);
+                                        router.replace('/(auth)/login' as never);
+                                    } catch {
+                                        // ignore
                                     }
                                 }
                             } finally {
@@ -674,9 +733,10 @@ export function WebViewContainer({
         },
         [
             DEVTOOLS_ENABLED,
+            clearWebToken,
             injectWebToken,
             looksJwt,
-            refreshAuth,
+            refreshDeterministic,
             router,
             setError,
             setLoading,
