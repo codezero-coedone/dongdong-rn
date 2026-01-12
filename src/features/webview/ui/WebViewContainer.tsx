@@ -603,7 +603,7 @@ export function WebViewContainer({
               } catch (e) {}
               post('WEB_FETCH_START', { rid: rid, method: method, url: u, auth: (tok ? 1 : 0), authAttached: __ddAuthAttached });
               // IMPORTANT:
-              // Do not call _fetch with original `arguments` because we may have created/modified `init`.
+              // Do not call _fetch with original arguments because we may have created/modified init.
               // If we call apply(arguments), our injected headers can be dropped (causes auth=0 on server).
               return _fetch.call(this, input, init).then(function(res) {
                 var st = res && typeof res.status === 'number' ? res.status : null;
