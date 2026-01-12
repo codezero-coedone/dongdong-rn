@@ -382,15 +382,28 @@ export function WebViewContainer({
               return { ok: 0, parts: 0, alg: '', hasSub: -1 };
             }
           }
-          function __ddLooksBackendJwt(v) {
+          function __ddIsJwtShape(v) {
             try {
               if (typeof v !== 'string') return false;
               var s = String(v || '').trim();
               if (!s) return false;
               var parts = s.split('.');
               if (parts.length !== 3) return false;
-              var info = __ddTokenInfo(s);
-              return !!info && info.ok === 1;
+              return true;
+            } catch (e) {
+              return false;
+            }
+          }
+          function __ddAcceptableWebJwt(v) {
+            // For web-originated tokens only:
+            // - Must be JWT-shaped
+            // - If we can decode header and see alg, only allow HS* (reject obvious foreign JWTs like RS256)
+            try {
+              if (!__ddIsJwtShape(String(v || ''))) return false;
+              var info = __ddTokenInfo(String(v || ''));
+              var a = String((info && info.alg) || '').toUpperCase();
+              if (a && a.indexOf('HS') !== 0) return false;
+              return true;
             } catch (e) {
               return false;
             }
@@ -399,14 +412,15 @@ export function WebViewContainer({
           // Guard: prevent web code from overwriting our RN-owned token with a non-JWT (e.g., Kakao web token).
           try {
             var __ddTokenVal = ${JSON.stringify(token)};
-            if (!__ddLooksBackendJwt(__ddTokenVal)) { __ddTokenVal = ''; }
+            // RN token: accept any JWT-shaped value (we will override Authorization from RN anyway).
+            if (!__ddIsJwtShape(String(__ddTokenVal || ''))) { __ddTokenVal = ''; }
             Object.defineProperty(window, '__ddAccessToken', {
               configurable: false,
               enumerable: false,
               get: function() { return __ddTokenVal; },
               set: function(v) {
                 try {
-                  if (__ddLooksBackendJwt(String(v))) { __ddTokenVal = String(v).trim(); }
+                  if (__ddAcceptableWebJwt(String(v))) { __ddTokenVal = String(v).trim(); }
                 } catch (e) {}
               }
             });
@@ -421,7 +435,7 @@ export function WebViewContainer({
               try {
                 if (String(k) === 'accessToken') {
                   var s = String(v || '').trim();
-                  if (!__ddLooksBackendJwt(s)) return;
+                  if (!__ddAcceptableWebJwt(s)) return;
                 }
               } catch (e) {}
               return __ddOrigSetItem(k, v);
@@ -431,14 +445,14 @@ export function WebViewContainer({
           // If web storage was already contaminated, purge it deterministically before any requests.
           try {
             var cur = String(localStorage.getItem('accessToken') || '').trim();
-            if (cur && !__ddLooksBackendJwt(cur)) {
+            if (cur && !__ddIsJwtShape(cur)) {
               localStorage.removeItem('accessToken');
             }
           } catch (e2b) {}
 
           try {
             var __ddAccessToken = String(window.__ddAccessToken || '').trim();
-            if (__ddLooksBackendJwt(__ddAccessToken)) {
+            if (__ddIsJwtShape(__ddAccessToken)) {
               localStorage.setItem('accessToken', __ddAccessToken);
             }
           } catch (e3) {}
@@ -455,11 +469,11 @@ export function WebViewContainer({
           function currentToken() {
             try {
               var t = String(window.__ddAccessToken || '').trim();
-              if (__ddLooksBackendJwt(t)) return t;
+              if (__ddIsJwtShape(t)) return t;
             } catch (e) {}
             try {
               var t2 = String(localStorage.getItem('accessToken') || '').trim();
-              if (__ddLooksBackendJwt(t2)) return t2;
+              if (__ddIsJwtShape(t2)) return t2;
             } catch (e2) {}
             return '';
           }
