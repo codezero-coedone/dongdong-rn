@@ -331,21 +331,55 @@ export function WebViewContainer({
         ? `
       (function() {
         try {
-          function __ddLooksJwt(v) {
-            try { return typeof v === 'string' && v.trim() && v.split('.').length === 3; } catch (e) { return false; }
+          function __ddB64UrlDecode(part) {
+            try {
+              var s = String(part || '');
+              s = s.replace(/-/g, '+').replace(/_/g, '/');
+              while (s.length % 4) s += '=';
+              return atob(s);
+            } catch (e) {
+              return '';
+            }
+          }
+          // IMPORTANT:
+          // - Do NOT accept "any 3-part JWT-looking token".
+          // - Kakao/3rd-party tokens can look JWT-ish but are NOT our backend token (causes auth=1 jwt=0/invalid token).
+          // - Our backend tokens are HS256 + payload includes { sub, role }.
+          function __ddLooksBackendJwt(v) {
+            try {
+              if (typeof v !== 'string') return false;
+              var s = String(v || '').trim();
+              if (!s) return false;
+              var parts = s.split('.');
+              if (parts.length !== 3) return false;
+              var h = __ddB64UrlDecode(parts[0]);
+              if (!h) return false;
+              var header = JSON.parse(h);
+              if (!header || typeof header !== 'object') return false;
+              if (String(header.alg || '') !== 'HS256') return false;
+              var p = __ddB64UrlDecode(parts[1]);
+              if (!p) return false;
+              var payload = JSON.parse(p);
+              if (!payload || typeof payload !== 'object') return false;
+              if (!('sub' in payload)) return false;
+              if (!('role' in payload)) return false;
+              return true;
+            } catch (e) {
+              return false;
+            }
           }
 
           // Guard: prevent web code from overwriting our RN-owned token with a non-JWT (e.g., Kakao web token).
           try {
             var __ddTokenVal = ${JSON.stringify(token)};
-            if (!__ddLooksJwt(__ddTokenVal)) { __ddTokenVal = ''; }
+            if (!__ddLooksBackendJwt(__ddTokenVal)) { __ddTokenVal = ''; }
             Object.defineProperty(window, '__ddAccessToken', {
               configurable: false,
               enumerable: false,
               get: function() { return __ddTokenVal; },
               set: function(v) {
                 try {
-                  if (__ddLooksJwt(String(v))) { __ddTokenVal = String(v).trim(); }
+                  if (__ddLooksBackendJwt(String(v))) { __ddTokenVal = String(v).trim(); }
                 } catch (e) {}
               }
             });
@@ -360,16 +394,24 @@ export function WebViewContainer({
               try {
                 if (String(k) === 'accessToken') {
                   var s = String(v || '').trim();
-                  if (!__ddLooksJwt(s)) return;
+                  if (!__ddLooksBackendJwt(s)) return;
                 }
               } catch (e) {}
               return __ddOrigSetItem(k, v);
             };
           } catch (e2) {}
 
+          // If web storage was already contaminated, purge it deterministically before any requests.
+          try {
+            var cur = String(localStorage.getItem('accessToken') || '').trim();
+            if (cur && !__ddLooksBackendJwt(cur)) {
+              localStorage.removeItem('accessToken');
+            }
+          } catch (e2b) {}
+
           try {
             var __ddAccessToken = String(window.__ddAccessToken || '').trim();
-            if (__ddLooksJwt(__ddAccessToken)) {
+            if (__ddLooksBackendJwt(__ddAccessToken)) {
               localStorage.setItem('accessToken', __ddAccessToken);
             }
           } catch (e3) {}
@@ -386,11 +428,11 @@ export function WebViewContainer({
           function currentToken() {
             try {
               var t = String(window.__ddAccessToken || '').trim();
-              if (t && t.split('.').length === 3) return t;
+              if (__ddLooksBackendJwt(t)) return t;
             } catch (e) {}
             try {
               var t2 = String(localStorage.getItem('accessToken') || '').trim();
-              if (t2 && t2.split('.').length === 3) return t2;
+              if (__ddLooksBackendJwt(t2)) return t2;
             } catch (e2) {}
             return '';
           }
@@ -539,6 +581,18 @@ export function WebViewContainer({
           if (XHR && XHR.prototype) {
             var _open = XHR.prototype.open;
             var _send = XHR.prototype.send;
+            var _setRequestHeader = XHR.prototype.setRequestHeader;
+            // Prevent page code (axios/etc) from setting Authorization with a contaminated token.
+            // We'll inject the RN-owned backend token (HS256 + {sub,role}) right before send.
+            XHR.prototype.setRequestHeader = function(key, value) {
+              try {
+                if (String(key || '').toLowerCase() === 'authorization') {
+                  this.__ddAuthHeader = String(value || '');
+                  return;
+                }
+              } catch (e) {}
+              return _setRequestHeader.apply(this, arguments);
+            };
             XHR.prototype.open = function(method, url) {
               try {
                 var uu = String(url || '');
@@ -557,7 +611,8 @@ export function WebViewContainer({
                   var tok2 = '';
                   try { tok2 = currentToken(); } catch (e0) { tok2 = ''; }
                   if (tok2) {
-                    self.setRequestHeader('Authorization', 'Bearer ' + String(tok2));
+                    // Bypass our own setRequestHeader hook so it cannot be blocked/concatenated.
+                    try { _setRequestHeader.call(self, 'Authorization', 'Bearer ' + String(tok2)); } catch (e4) {}
                     meta.auth = 1;
                   } else {
                     meta.auth = 0;
