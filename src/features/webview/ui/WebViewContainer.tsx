@@ -1080,6 +1080,8 @@ export function WebViewContainer({
                         alignItems: 'center',
                         backgroundColor: '#fff',
                     }}
+                    // If loading state gets stuck (WebView quirks), do NOT block touches forever.
+                    pointerEvents="none"
                 >
                     {LoadingComponent ? (
                         <LoadingComponent />
@@ -1101,6 +1103,18 @@ export function WebViewContainer({
                 onLoadStart={() => {
                     setLoading(true);
                     if (DEVTOOLS_ENABLED) devlog({ scope: 'SYS', level: 'info', message: `webview: loadStart url=${url}` });
+                }}
+                onLoadProgress={(e: any) => {
+                    // Some SPA navigations / Android WebView variants may miss onLoadEnd.
+                    // Progress >= 0.9 is a strong signal that UI is interactive; clear the overlay deterministically.
+                    try {
+                        const p = e?.nativeEvent?.progress;
+                        if (typeof p === 'number' && p >= 0.9) {
+                            setLoading(false);
+                        }
+                    } catch {
+                        // ignore
+                    }
                 }}
                 onLoadEnd={handleLoadEnd}
                 injectedJavaScriptBeforeContentLoaded={injectedBeforeContentLoaded}
