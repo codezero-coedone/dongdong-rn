@@ -46,7 +46,28 @@ export function DevOverlay() {
     const kakaoKeyHash = process.env.EXPO_PUBLIC_KAKAO_KEY_HASH || "";
     const webview = process.env.EXPO_PUBLIC_WEBVIEW_URL || "";
     const devtools = process.env.EXPO_PUBLIC_DEVTOOLS || (__DEV__ ? "dev" : "");
-    return { pkg, api, kakao, kakaoKeyHash, webview, devtools };
+    const buildSha =
+      (Constants as any)?.expoConfig?.extra?.buildSha ||
+      process.env.EXPO_PUBLIC_BUILD_GIT_SHA ||
+      "";
+    const buildNumber =
+      (Constants as any)?.expoConfig?.extra?.buildNumber ||
+      process.env.EXPO_PUBLIC_BUILD_NUMBER ||
+      "";
+    const versionCode =
+      String((Constants as any)?.expoConfig?.android?.versionCode || "") ||
+      String((Constants as any)?.manifest?.android?.versionCode || "");
+    return {
+      pkg,
+      api,
+      kakao,
+      kakaoKeyHash,
+      webview,
+      devtools,
+      buildSha,
+      buildNumber,
+      versionCode,
+    };
   }, []);
 
   useEffect(() => {
@@ -184,6 +205,10 @@ export function DevOverlay() {
           </View>
 
           <View style={styles.infoBox}>
+            <Text style={styles.infoText}>
+              build: {runtimeInfo.buildSha || "(unknown)"} / #{runtimeInfo.buildNumber || "(n/a)"} / vc=
+              {runtimeInfo.versionCode || "(n/a)"}
+            </Text>
             <Text style={styles.infoText}>package: {runtimeInfo.pkg || "(unknown)"}</Text>
             <Text style={styles.infoText}>api: {runtimeInfo.api || "(unknown)"}</Text>
             <Text style={styles.infoText}>webview: {runtimeInfo.webview || "(n/a)"}</Text>

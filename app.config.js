@@ -59,9 +59,28 @@ module.exports = () => {
     ]);
   }
 
+  // Build identity (for DEV TRACE / support). This is embedded at build time.
+  // Prefer Codemagic-provided env vars when present.
+  const buildSha =
+    process.env.EXPO_PUBLIC_BUILD_GIT_SHA ||
+    process.env.CM_COMMIT ||
+    process.env.GIT_COMMIT ||
+    process.env.CI_COMMIT_SHA ||
+    "";
+  const buildNumber =
+    process.env.EXPO_PUBLIC_BUILD_NUMBER ||
+    process.env.CM_BUILD_NUMBER ||
+    process.env.BUILD_NUMBER ||
+    "";
+
   return {
     ...base,
     plugins,
+    extra: {
+      ...(base.extra || {}),
+      buildSha,
+      buildNumber,
+    },
     runtimeVersion: base.runtimeVersion ?? { policy: "appVersion" },
     updates: {
       ...(base.updates || {}),

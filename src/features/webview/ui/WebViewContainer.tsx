@@ -1,6 +1,7 @@
 import { useAuthStore } from '@/features/auth';
 import {
     WEBVIEW_CONFIG,
+    WEBVIEW_LOADING_CONFIG,
     WEBVIEW_URL,
     isAllowedUrl,
 } from '@/shared/config/webview';
@@ -64,6 +65,9 @@ export function WebViewContainer({
     const [persistedToken, setPersistedToken] = React.useState<string | null>(null);
     const lastWeb401AtRef = React.useRef(0);
     const webRefreshInFlightRef = React.useRef(false);
+    const loadStartAtRef = React.useRef(0);
+    const lastProgressRef = React.useRef(0);
+    const lastWebMsgAtRef = React.useRef(0);
 
     const sigLog = useCallback(
         (sig: number, level: 'info' | 'warn' | 'error', message: string, meta?: Record<string, unknown>) => {
@@ -256,6 +260,11 @@ export function WebViewContainer({
 
     const handleMessageWithAuth = useCallback(
         (event: { nativeEvent: { data: string } }) => {
+            try {
+                lastWebMsgAtRef.current = Date.now();
+            } catch {
+                // ignore
+            }
             try {
                 const raw = String(event?.nativeEvent?.data || '');
                 const data = raw ? JSON.parse(raw) : null;
@@ -1003,10 +1012,25 @@ export function WebViewContainer({
     useEffect(() => {
         if (!isLoading) return;
         const t = setTimeout(() => {
-            setError(
-                `WebView loading timeout.\nURL=${url}\n(HTTP 차단/도메인 미연결/서버 다운일 수 있습니다)`,
-            );
-        }, 15000);
+            // If we have any meaningful signal that the page is alive, do not hard-fail into an error screen.
+            // (Some Android WebView variants miss onLoadEnd for SPA navigations.)
+            const startedAt = loadStartAtRef.current || 0;
+            const hasProgress = lastProgressRef.current >= 0.2;
+            const hasWebMsg = startedAt > 0 && lastWebMsgAtRef.current >= startedAt;
+            if (hasProgress || hasWebMsg) {
+                if (DEVTOOLS_ENABLED) {
+                    devlog({
+                        scope: 'SYS',
+                        level: 'warn',
+                        message: `webview: soft-timeout (ignore) url=${String(url || '').split('?')[0]}`,
+                        meta: { hasProgress, progress: lastProgressRef.current, hasWebMsg },
+                    });
+                }
+                setLoading(false);
+                return;
+            }
+            setError(`WebView loading timeout.\nURL=${url}\n(HTTP 차단/도메인 미연결/서버 다운일 수 있습니다)`);
+        }, WEBVIEW_LOADING_CONFIG.loadingTimeout);
         return () => clearTimeout(t);
     }, [isLoading, url, setError]);
 
@@ -1102,6 +1126,13 @@ export function WebViewContainer({
                 source={{ uri: url }}
                 onLoadStart={() => {
                     setLoading(true);
+                    try {
+                        loadStartAtRef.current = Date.now();
+                        lastProgressRef.current = 0;
+                        lastWebMsgAtRef.current = 0;
+                    } catch {
+                        // ignore
+                    }
                     if (DEVTOOLS_ENABLED) devlog({ scope: 'SYS', level: 'info', message: `webview: loadStart url=${url}` });
                 }}
                 onLoadProgress={(e: any) => {
@@ -1111,6 +1142,9 @@ export function WebViewContainer({
                         const p = e?.nativeEvent?.progress;
                         if (typeof p === 'number' && p >= 0.9) {
                             setLoading(false);
+                        }
+                        if (typeof p === 'number') {
+                            lastProgressRef.current = p;
                         }
                     } catch {
                         // ignore
