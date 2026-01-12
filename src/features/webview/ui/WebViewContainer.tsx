@@ -410,9 +410,9 @@ export function WebViewContainer({
           }
 
           // Export helpers for later IIFEs (DEV hooks).
-          // NOTE: Without this, later hooks may see ReferenceError and silently drop Authorization → auth=0.
-          try { (window as any).__ddIsJwtShape = __ddIsJwtShape; } catch (e) {}
-          try { (window as any).__ddTokenInfo = __ddTokenInfo; } catch (e) {}
+          // NOTE: This is plain JS (no TS casts). If this breaks, hooks can drop Authorization → auth=0.
+          try { window.__ddIsJwtShape = __ddIsJwtShape; } catch (e) {}
+          try { window.__ddTokenInfo = __ddTokenInfo; } catch (e) {}
 
           // Guard: prevent web code from overwriting our RN-owned token with a non-JWT (e.g., Kakao web token).
           try {
@@ -469,7 +469,7 @@ export function WebViewContainer({
         try {
           // Pull helper fns from window to avoid scoping bugs.
           // (If undefined, hooks will think "token missing" and send auth=0.)
-          var __ddIsJwtShape = (window && (window as any).__ddIsJwtShape) ? (window as any).__ddIsJwtShape : function(v) {
+          var __ddIsJwtShape = (window && window.__ddIsJwtShape) ? window.__ddIsJwtShape : function(v) {
             try {
               if (typeof v !== 'string') return false;
               var s = String(v || '').trim();
@@ -477,7 +477,7 @@ export function WebViewContainer({
               return s.split('.').length === 3;
             } catch (e) { return false; }
           };
-          var __ddTokenInfo = (window && (window as any).__ddTokenInfo) ? (window as any).__ddTokenInfo : function(s) {
+          var __ddTokenInfo = (window && window.__ddTokenInfo) ? window.__ddTokenInfo : function(s) {
             try {
               var str = String(s || '').trim();
               if (!str) return { ok: 0, parts: 0, alg: '', hasSub: -1 };
