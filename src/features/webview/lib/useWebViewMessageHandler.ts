@@ -187,6 +187,28 @@ export function useWebViewMessageHandler(injectJavaScript?: (script: string) => 
             return;
         }
 
+        if (ev === 'WEB_AUTH_STATE') {
+            // Make the auth-state visible in DEV TRACE UI (message only; meta isn't always visible).
+            try {
+                const source = typeof (props as any).source === 'string' ? String((props as any).source) : '';
+                const win = (props as any).win || {};
+                const ls = (props as any).ls || {};
+                const wAlg = typeof win.alg === 'string' ? win.alg : '';
+                const lAlg = typeof ls.alg === 'string' ? ls.alg : '';
+                const wOk = typeof win.ok === 'number' ? win.ok : 0;
+                const lOk = typeof ls.ok === 'number' ? ls.ok : 0;
+                devlog({
+                    scope: 'SYS',
+                    level: 'info',
+                    message: `web: AUTH_STATE src=${source || 'none'} win(ok=${wOk} alg=${wAlg || '-'}) ls(ok=${lOk} alg=${lAlg || '-'})`,
+                    meta: props,
+                });
+                return;
+            } catch {
+                // fall through
+            }
+        }
+
         devlog({
             scope: 'SYS',
             level: 'info',

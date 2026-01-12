@@ -342,10 +342,42 @@ export function WebViewContainer({
             }
           }
           // IMPORTANT:
-          // - Do NOT accept "any 3-part JWT-looking token".
-          // - Kakao/3rd-party tokens can be JWT-ish (often RS256) but are NOT our backend token.
-          // - Our backend tokens are HMAC-based (HS256) and must include 'sub'.
-          //   (Some older tokens may not include 'role', so we keep it optional here.)
+          // - We must not hard-fail token parsing: if we reject the RN-provided token, requests go out with auth=0.
+          // - We still block obvious foreign JWTs (e.g., RS256) when we can decode header safely.
+          function __ddTokenInfo(s) {
+            try {
+              var str = String(s || '').trim();
+              if (!str) return { ok: 0, parts: 0, alg: '', hasSub: -1 };
+              var parts = str.split('.');
+              if (parts.length !== 3) return { ok: 0, parts: parts.length, alg: '', hasSub: -1 };
+              var alg = '';
+              var hasSub = -1; // -1 unknown, 0 no, 1 yes
+              try {
+                // atob may be unavailable in some early WebView contexts; treat as unknown.
+                if (typeof atob === 'function') {
+                  var h = __ddB64UrlDecode(parts[0]);
+                  if (h) {
+                    var header = JSON.parse(h);
+                    alg = header && header.alg ? String(header.alg) : '';
+                  }
+                  var p = __ddB64UrlDecode(parts[1]);
+                  if (p) {
+                    var payload = JSON.parse(p);
+                    hasSub = payload && typeof payload === 'object' && ('sub' in payload) ? 1 : 0;
+                  }
+                }
+              } catch (e1) {
+                // keep unknowns
+              }
+              // Base accept: 3-part token (JWT-shape). Extra checks only if we successfully decoded.
+              var ok = 1;
+              if (alg && alg !== 'HS256') ok = 0;
+              if (hasSub === 0) ok = 0;
+              return { ok: ok, parts: 3, alg: alg, hasSub: hasSub };
+            } catch (e) {
+              return { ok: 0, parts: 0, alg: '', hasSub: -1 };
+            }
+          }
           function __ddLooksBackendJwt(v) {
             try {
               if (typeof v !== 'string') return false;
@@ -353,17 +385,8 @@ export function WebViewContainer({
               if (!s) return false;
               var parts = s.split('.');
               if (parts.length !== 3) return false;
-              var h = __ddB64UrlDecode(parts[0]);
-              if (!h) return false;
-              var header = JSON.parse(h);
-              if (!header || typeof header !== 'object') return false;
-              if (String(header.alg || '') !== 'HS256') return false;
-              var p = __ddB64UrlDecode(parts[1]);
-              if (!p) return false;
-              var payload = JSON.parse(p);
-              if (!payload || typeof payload !== 'object') return false;
-              if (!('sub' in payload)) return false;
-              return true;
+              var info = __ddTokenInfo(s);
+              return !!info && info.ok === 1;
             } catch (e) {
               return false;
             }
@@ -522,19 +545,13 @@ export function WebViewContainer({
             function tokenInfo(raw) {
               try {
                 var s = String(raw || '').trim();
-                if (!s) return { present: 0, ok: 0, alg: '' };
+                if (!s) return { present: 0, ok: 0, alg: '', hasSub: -1 };
                 var parts = s.split('.');
-                if (parts.length !== 3) return { present: 1, ok: 0, alg: '' };
-                var alg = '';
-                try {
-                  var h = __ddB64UrlDecode(parts[0]);
-                  var header = h ? JSON.parse(h) : null;
-                  alg = header && header.alg ? String(header.alg) : '';
-                } catch (e) {}
-                var ok = __ddLooksBackendJwt(s) ? 1 : 0;
-                return { present: 1, ok: ok, alg: alg };
+                if (parts.length !== 3) return { present: 1, ok: 0, alg: '', hasSub: -1 };
+                var info = __ddTokenInfo(s);
+                return { present: 1, ok: info && info.ok === 1 ? 1 : 0, alg: info ? info.alg : '', hasSub: info ? info.hasSub : -1 };
               } catch (e2) {
-                return { present: 0, ok: 0, alg: '' };
+                return { present: 0, ok: 0, alg: '', hasSub: -1 };
               }
             }
             var winT = '';
