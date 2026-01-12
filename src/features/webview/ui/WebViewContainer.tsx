@@ -665,7 +665,29 @@ export function WebViewContainer({
                     try { _setRequestHeader.call(self, 'Authorization', 'Bearer ' + String(tok2)); } catch (e4) {}
                     meta.auth = 1;
                   } else {
-                    meta.auth = 0;
+                    // Fallback:
+                    // If RN token is temporarily unavailable but the page already attempted to set Authorization,
+                    // allow it ONLY if it looks like our backend JWT (or at least not an obvious foreign JWT).
+                    // This prevents auth=0 storms on /my/* while still blocking Kakao/foreign tokens.
+                    try {
+                      var pageAuth = '';
+                      try { pageAuth = String(self.__ddAuthHeader || '').trim(); } catch (e5) { pageAuth = ''; }
+                      if (pageAuth && pageAuth.toLowerCase().indexOf('bearer ') === 0) {
+                        var raw = String(pageAuth.slice('bearer '.length)).trim();
+                        var info = __ddTokenInfo(raw);
+                        if (info && info.ok === 1) {
+                          try { _setRequestHeader.call(self, 'Authorization', 'Bearer ' + raw); } catch (e6) {}
+                          meta.auth = 1;
+                          meta.authSource = 'page';
+                        } else {
+                          meta.auth = 0;
+                        }
+                      } else {
+                        meta.auth = 0;
+                      }
+                    } catch (e7) {
+                      meta.auth = 0;
+                    }
                   }
                 } catch (e3) {}
                 post('WEB_XHR_START', meta);
