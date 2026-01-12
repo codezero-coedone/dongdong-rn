@@ -369,10 +369,14 @@ export function WebViewContainer({
               } catch (e1) {
                 // keep unknowns
               }
-              // Base accept: 3-part token (JWT-shape). Extra checks only if we successfully decoded.
+              // Base accept: 3-part token (JWT-shape).
+              // Extra checks only if we successfully decoded:
+              // - Allow HS* (backend) algorithms
+              // - Reject obvious foreign algorithms (e.g., RS256)
+              // NOTE: Do NOT require sub claim here; backend tokens may not include it.
               var ok = 1;
-              if (alg && alg !== 'HS256') ok = 0;
-              if (hasSub === 0) ok = 0;
+              var a = String(alg || '').toUpperCase();
+              if (a && a.indexOf('HS') !== 0) ok = 0;
               return { ok: ok, parts: 3, alg: alg, hasSub: hasSub };
             } catch (e) {
               return { ok: 0, parts: 0, alg: '', hasSub: -1 };
