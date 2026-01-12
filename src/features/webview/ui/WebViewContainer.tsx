@@ -344,8 +344,8 @@ export function WebViewContainer({
           // IMPORTANT:
           // - Do NOT accept "any 3-part JWT-looking token".
           // - Kakao/3rd-party tokens can be JWT-ish (often RS256) but are NOT our backend token.
-          // - Our backend tokens are HMAC-based (HS256) and must include `sub`.
-          //   (Some older tokens may not include `role`, so we keep it optional here.)
+          // - Our backend tokens are HMAC-based (HS256) and must include 'sub'.
+          //   (Some older tokens may not include 'role', so we keep it optional here.)
           function __ddLooksBackendJwt(v) {
             try {
               if (typeof v !== 'string') return false;
