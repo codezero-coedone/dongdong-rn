@@ -343,8 +343,9 @@ export function WebViewContainer({
           }
           // IMPORTANT:
           // - Do NOT accept "any 3-part JWT-looking token".
-          // - Kakao/3rd-party tokens can look JWT-ish but are NOT our backend token (causes auth=1 jwt=0/invalid token).
-          // - Our backend tokens are HS256 + payload includes { sub, role }.
+          // - Kakao/3rd-party tokens can be JWT-ish (often RS256) but are NOT our backend token.
+          // - Our backend tokens are HMAC-based (HS256) and must include `sub`.
+          //   (Some older tokens may not include `role`, so we keep it optional here.)
           function __ddLooksBackendJwt(v) {
             try {
               if (typeof v !== 'string') return false;
@@ -362,7 +363,6 @@ export function WebViewContainer({
               var payload = JSON.parse(p);
               if (!payload || typeof payload !== 'object') return false;
               if (!('sub' in payload)) return false;
-              if (!('role' in payload)) return false;
               return true;
             } catch (e) {
               return false;
@@ -517,9 +517,39 @@ export function WebViewContainer({
           }
 
           // One-time auth state ping (no token value).
+          // - Helps triage: (a) token missing, (b) token present but rejected by guard.
           try {
-            var t0 = currentToken();
-            post('WEB_AUTH_STATE', { hasToken: !!(t0 && String(t0).trim()) });
+            function tokenInfo(raw) {
+              try {
+                var s = String(raw || '').trim();
+                if (!s) return { present: 0, ok: 0, alg: '' };
+                var parts = s.split('.');
+                if (parts.length !== 3) return { present: 1, ok: 0, alg: '' };
+                var alg = '';
+                try {
+                  var h = __ddB64UrlDecode(parts[0]);
+                  var header = h ? JSON.parse(h) : null;
+                  alg = header && header.alg ? String(header.alg) : '';
+                } catch (e) {}
+                var ok = __ddLooksBackendJwt(s) ? 1 : 0;
+                return { present: 1, ok: ok, alg: alg };
+              } catch (e2) {
+                return { present: 0, ok: 0, alg: '' };
+              }
+            }
+            var winT = '';
+            var lsT = '';
+            try { winT = String(window.__ddAccessToken || '').trim(); } catch (e0) {}
+            try { lsT = String(localStorage.getItem('accessToken') || '').trim(); } catch (e1) {}
+            var w = tokenInfo(winT);
+            var l = tokenInfo(lsT);
+            var cur = currentToken();
+            post('WEB_AUTH_STATE', {
+              hasToken: !!(cur && String(cur).trim()),
+              win: w,
+              ls: l,
+              source: w.ok ? 'win' : l.ok ? 'ls' : 'none',
+            });
           } catch (e) {}
 
           // fetch hook
