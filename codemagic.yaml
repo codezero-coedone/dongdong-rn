@@ -17,7 +17,7 @@ workflows:
       vars:
         APP_DIR: .
         KEYSTORE_FILE: guardian-upload.jks
-        EXPECTED_UPLOAD_CERT_SHA1: "75:69:F0:C6:EF:65:C2:8A:A9:04:40:41:D6:C6:08:0C:80:E6:FF:10"
+        EXPECTED_UPLOAD_CERT_SHA1: "51:7F:61:63:74:A4:3A:BA:DC:07:75:59:CB:D3:97:6E:64:38:F2:C7"
     # Trigger policy:
     # - Avoid wasting versionCode/build slots on every push.
     # - This is manual; dev APK rail is the only auto rail.
@@ -344,7 +344,7 @@ workflows:
         KEYSTORE_FILE: guardian-upload.jks
         # Play Console expected upload cert SHA1 for guardian (from Play error message).
         # Used as a guard to fail fast if Codemagic picked the wrong keystore.
-        EXPECTED_UPLOAD_CERT_SHA1: "75:69:F0:C6:EF:65:C2:8A:A9:04:40:41:D6:C6:08:0C:80:E6:FF:10"
+        EXPECTED_UPLOAD_CERT_SHA1: "51:7F:61:63:74:A4:3A:BA:DC:07:75:59:CB:D3:97:6E:64:38:F2:C7"
     # Trigger policy:
     # - Avoid wasting versionCode on every push.
     # - AAB rails are manual; dev APK rail is the only auto rail.
