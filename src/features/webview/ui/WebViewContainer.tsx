@@ -384,7 +384,15 @@ export function WebViewContainer({
           if (window.__ddDevtoolsInstalled) return;
           window.__ddDevtoolsInstalled = true;
           function currentToken() {
-            try { return String(window.__ddAccessToken || localStorage.getItem('accessToken') || ''); } catch (e) { return ''; }
+            try {
+              var t = String(window.__ddAccessToken || '').trim();
+              if (t && t.split('.').length === 3) return t;
+            } catch (e) {}
+            try {
+              var t2 = String(localStorage.getItem('accessToken') || '').trim();
+              if (t2 && t2.split('.').length === 3) return t2;
+            } catch (e2) {}
+            return '';
           }
           var __ddRidSeq = 0;
           function nextRid() {
@@ -493,11 +501,12 @@ export function WebViewContainer({
                 if (!init) init = {};
                 var h = init.headers || {};
                 h = setHeader(h, 'X-DD-Request-Id', rid);
-                // Force Authorization from RN token to prevent initial 401 race.
+                // Force Authorization from RN token (JWT only) to prevent "contaminated token" 401 loops.
+                // Always overwrite Authorization if we have a valid RN token.
                 // (Do NOT log the token value.)
                 var tok = '';
                 try { tok = currentToken(); } catch (e0) { tok = ''; }
-                if (tok && !hasAuth(h)) {
+                if (tok) {
                   h = setHeader(h, 'Authorization', 'Bearer ' + String(tok));
                   __ddAuthAttached = 1;
                 }
@@ -550,6 +559,8 @@ export function WebViewContainer({
                   if (tok2) {
                     self.setRequestHeader('Authorization', 'Bearer ' + String(tok2));
                     meta.auth = 1;
+                  } else {
+                    meta.auth = 0;
                   }
                 } catch (e3) {}
                 post('WEB_XHR_START', meta);
@@ -627,6 +638,8 @@ export function WebViewContainer({
         // 토큰 전송
         if (token) {
             sendAuthToken({ accessToken: token });
+            // Re-assert token inside the live runtime as well (covers SPA navigations / timing quirks).
+            injectWebToken(token);
         }
 
         // 사용자 정보 전송
@@ -655,7 +668,7 @@ export function WebViewContainer({
       `;
             webViewRef.current?.injectJavaScript(probe);
         }
-    }, [DEVTOOLS_ENABLED, token, user, sendAuthToken, sendUserInfo, setLoading, setReady, webViewRef]);
+    }, [DEVTOOLS_ENABLED, token, user, sendAuthToken, sendUserInfo, injectWebToken, setLoading, setReady, webViewRef]);
 
     // ============================================
     // 네비게이션 상태 업데이트
