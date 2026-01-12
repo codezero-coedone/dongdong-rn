@@ -24,7 +24,12 @@ workflows:
     scripts:
       - name: Export guardian upload certificate PEM (for Play upload key reset)
         script: |
-          cd "$APP_DIR/android"
+          # android/ may not exist until Expo prebuild runs; cert export does not require it.
+          if [ -d "$APP_DIR/android" ]; then
+            cd "$APP_DIR/android"
+          else
+            cd "$APP_DIR"
+          fi
           KEYSTORE_PATH=""
           echo "KEYSTORE_FILE=${KEYSTORE_FILE:-}"
           echo "CM_KEYSTORE_PATH=${CM_KEYSTORE_PATH:-}"
