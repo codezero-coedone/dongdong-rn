@@ -331,9 +331,48 @@ export function WebViewContainer({
         ? `
       (function() {
         try {
-          var __ddAccessToken = ${JSON.stringify(token)};
-          try { window.__ddAccessToken = __ddAccessToken; } catch (e0) {}
-          try { localStorage.setItem('accessToken', __ddAccessToken); } catch (e1) {}
+          function __ddLooksJwt(v) {
+            try { return typeof v === 'string' && v.trim() && v.split('.').length === 3; } catch (e) { return false; }
+          }
+
+          // Guard: prevent web code from overwriting our RN-owned token with a non-JWT (e.g., Kakao web token).
+          try {
+            var __ddTokenVal = ${JSON.stringify(token)};
+            if (!__ddLooksJwt(__ddTokenVal)) { __ddTokenVal = ''; }
+            Object.defineProperty(window, '__ddAccessToken', {
+              configurable: false,
+              enumerable: false,
+              get: function() { return __ddTokenVal; },
+              set: function(v) {
+                try {
+                  if (__ddLooksJwt(String(v))) { __ddTokenVal = String(v).trim(); }
+                } catch (e) {}
+              }
+            });
+          } catch (e0) {
+            try { window.__ddAccessToken = ${JSON.stringify(token)}; } catch (e1) {}
+          }
+
+          // Guard localStorage accessToken: allow only JWT-shaped values.
+          try {
+            var __ddOrigSetItem = localStorage.setItem.bind(localStorage);
+            localStorage.setItem = function(k, v) {
+              try {
+                if (String(k) === 'accessToken') {
+                  var s = String(v || '').trim();
+                  if (!__ddLooksJwt(s)) return;
+                }
+              } catch (e) {}
+              return __ddOrigSetItem(k, v);
+            };
+          } catch (e2) {}
+
+          try {
+            var __ddAccessToken = String(window.__ddAccessToken || '').trim();
+            if (__ddLooksJwt(__ddAccessToken)) {
+              localStorage.setItem('accessToken', __ddAccessToken);
+            }
+          } catch (e3) {}
           try { window.dispatchEvent(new Event('dd-auth-token')); } catch (e2) {}
         } catch (e) {}
       })();
