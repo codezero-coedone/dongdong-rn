@@ -409,6 +409,11 @@ export function WebViewContainer({
             }
           }
 
+          // Export helpers for later IIFEs (DEV hooks).
+          // NOTE: Without this, later hooks may see ReferenceError and silently drop Authorization → auth=0.
+          try { (window as any).__ddIsJwtShape = __ddIsJwtShape; } catch (e) {}
+          try { (window as any).__ddTokenInfo = __ddTokenInfo; } catch (e) {}
+
           // Guard: prevent web code from overwriting our RN-owned token with a non-JWT (e.g., Kakao web token).
           try {
             var __ddTokenVal = ${JSON.stringify(token)};
@@ -462,6 +467,28 @@ export function WebViewContainer({
       (function() {
         // DEV only: bridge web fetch/XHR errors to RN DEV TRACE (no body/PII).
         try {
+          // Pull helper fns from window to avoid scoping bugs.
+          // (If undefined, hooks will think "token missing" and send auth=0.)
+          var __ddIsJwtShape = (window && (window as any).__ddIsJwtShape) ? (window as any).__ddIsJwtShape : function(v) {
+            try {
+              if (typeof v !== 'string') return false;
+              var s = String(v || '').trim();
+              if (!s) return false;
+              return s.split('.').length === 3;
+            } catch (e) { return false; }
+          };
+          var __ddTokenInfo = (window && (window as any).__ddTokenInfo) ? (window as any).__ddTokenInfo : function(s) {
+            try {
+              var str = String(s || '').trim();
+              if (!str) return { ok: 0, parts: 0, alg: '', hasSub: -1 };
+              var parts = str.split('.');
+              if (parts.length !== 3) return { ok: 0, parts: parts.length, alg: '', hasSub: -1 };
+              return { ok: 1, parts: 3, alg: '', hasSub: -1 };
+            } catch (e) {
+              return { ok: 0, parts: 0, alg: '', hasSub: -1 };
+            }
+          };
+
           var enabled = ${DEVTOOLS_ENABLED ? 'true' : 'false'};
           if (!enabled) return;
           if (window.__ddDevtoolsInstalled) return;
