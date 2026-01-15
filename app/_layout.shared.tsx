@@ -14,6 +14,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import "react-native-reanimated";
@@ -26,6 +27,29 @@ import { DevOverlay } from "@/shared/devtools/DevOverlay";
 import { devlog } from "@/shared/devtools/devlog";
 import { secureStorage } from "@/shared/lib/storage";
 import { STORAGE_KEYS } from "@/shared/constants/storage";
+
+// ==========================================================
+// Typography defaults (pixel alignment)
+// - Prevent Android extra font padding from shifting baselines.
+// - Prevent device fontScale differences from making Guardian/Caregiver look mismatched.
+// ==========================================================
+try {
+  (Text as any).defaultProps = (Text as any).defaultProps || {};
+  (Text as any).defaultProps.allowFontScaling = false;
+  (Text as any).defaultProps.style = [
+    Platform.OS === "android" ? { includeFontPadding: false } : null,
+    (Text as any).defaultProps.style,
+  ].filter(Boolean);
+
+  (TextInput as any).defaultProps = (TextInput as any).defaultProps || {};
+  (TextInput as any).defaultProps.allowFontScaling = false;
+  (TextInput as any).defaultProps.style = [
+    Platform.OS === "android" ? { includeFontPadding: false } : null,
+    (TextInput as any).defaultProps.style,
+  ].filter(Boolean);
+} catch {
+  // ignore
+}
 
 /**
  * ============================================
