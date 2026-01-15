@@ -43,9 +43,9 @@ export default function PermissionPage() {
       // ignore
     }
     if (DEVTOOLS_ENABLED) {
-      devlog({ scope: "NAV", level: "info", message: "permission: confirm -> login" });
+      devlog({ scope: "NAV", level: "info", message: "permission: confirm -> onboarding.step3" });
     }
-    router.replace("/(auth)/login");
+    router.replace("/onboarding/step3");
   };
 
   return (

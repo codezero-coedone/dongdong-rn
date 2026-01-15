@@ -8,6 +8,7 @@ export const STORAGE_KEYS = {
 
   // Onboarding
   ONBOARDING_COMPLETE: "onboarding_complete",
+  ONBOARDING_SLIDES_COMPLETE: "onboarding_slides_complete",
   FIRST_LAUNCH: "first_launch",
 
   // Settings

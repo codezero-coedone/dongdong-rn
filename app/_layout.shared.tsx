@@ -156,40 +156,75 @@ function useProtectedRoute() {
     if (isLoading) return;
 
     const inAuthGroup = segments[0] === "(auth)";
+    const inOnboardingGroup = segments[0] === "onboarding";
 
     const DEVTOOLS_ENABLED = Boolean(__DEV__ || process.env.EXPO_PUBLIC_DEVTOOLS === "1");
 
-    // 권한 온보딩은 1회만 노출 (무한 루프 방지)
+    // 온보딩(슬라이드) + 권한 온보딩은 1회만 노출 (무한 루프 방지)
     const decide = async () => {
       let onboardingComplete = false;
+      let slidesComplete = false;
       try {
-        const v = await secureStorage.get(STORAGE_KEYS.ONBOARDING_COMPLETE);
-        onboardingComplete = v === "1" || v === "true";
+        const [v1, v2] = await Promise.all([
+          secureStorage.get(STORAGE_KEYS.ONBOARDING_COMPLETE),
+          secureStorage.get(STORAGE_KEYS.ONBOARDING_SLIDES_COMPLETE),
+        ]);
+        onboardingComplete = v1 === "1" || v1 === "true";
+        slidesComplete = v2 === "1" || v2 === "true";
       } catch {
         onboardingComplete = false;
+        slidesComplete = false;
       }
 
       if (DEVTOOLS_ENABLED) {
         devlog({
           scope: "NAV",
           level: "info",
-          message: `route: auth=${String(isAuthenticated)} loading=${String(isLoading)} onboarding=${String(onboardingComplete)} seg=${segments.join("/")}`,
+          message: `route: auth=${String(isAuthenticated)} loading=${String(isLoading)} slides=${String(slidesComplete)} perm=${String(onboardingComplete)} seg=${segments.join("/")}`,
         });
       }
 
       if (!isAuthenticated) {
-        // 미인증 상태: 첫 실행에는 권한 화면, 이후에는 로그인 화면으로 고정
-        const target = onboardingComplete ? "/(auth)/login" : "/(auth)/permission";
-        if (!inAuthGroup || (segments[1] !== "login" && segments[1] !== "permission")) {
+        // 미인증 상태: 첫 실행에는 온보딩(2a/2b/2c) → 권한(1회) → 로그인(온보딩 step3)
+        const target = !slidesComplete
+          ? "/onboarding"
+          : !onboardingComplete
+            ? "/(auth)/permission"
+            : "/onboarding/step3";
+
+        // Allow-list: auth(permission), onboarding(1~3)
+        const inAllowedAuth =
+          inAuthGroup && (segments[1] === "permission" || segments[1] === "login");
+        const inAllowedOnboarding = inOnboardingGroup;
+
+        if (!inAllowedAuth && !inAllowedOnboarding) {
           router.replace(target);
-        } else if (segments[1] === "permission" && onboardingComplete) {
-          router.replace("/(auth)/login");
+          return;
+        }
+
+        // If permission already done, do not stay on permission screen.
+        if (inAuthGroup && segments[1] === "permission" && onboardingComplete) {
+          router.replace("/onboarding/step3");
+          return;
+        }
+
+        // If slides not done, do not allow jumping into auth screens (permission/login) yet.
+        // Onboarding(2a/2b/2c) 안에서는 자유롭게 이동(push) 가능해야 한다.
+        if (!slidesComplete && inAuthGroup) {
+          router.replace("/onboarding");
+          return;
+        }
+
+        // If slides done and permission done, do not stay on onboarding step1/2.
+        if (slidesComplete && onboardingComplete && inOnboardingGroup && segments[1] !== "step3") {
+          router.replace("/onboarding/step3");
+          return;
         }
         return;
       }
 
       // 인증 완료면 auth 그룹을 벗어나 탭으로
-      if (isAuthenticated && inAuthGroup) {
+      if (isAuthenticated && (inAuthGroup || inOnboardingGroup)) {
         router.replace("/(tabs)");
       }
     };
