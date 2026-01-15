@@ -475,7 +475,7 @@ export function WebViewContainer({
       })();
       (function() {
         // Release-safe 401 bridge:
-        // - Web client dispatches `dd-auth-401` on any 401.
+        // - Web client dispatches dd-auth-401 on any 401.
         // - In AAB/Release we do NOT enable full fetch/XHR tracing, but we still must heal token expiry.
         // - This bridge posts a minimal ANALYTICS event (status=401 only, no body/PII) so RN can refresh+reload.
         try {
