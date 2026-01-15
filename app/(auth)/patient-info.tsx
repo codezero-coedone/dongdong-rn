@@ -3,14 +3,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "expo-router";
 import { Controller, useForm } from "react-hook-form";
 import {
-    Keyboard,
     KeyboardAvoidingView,
     Platform,
     Pressable,
     ScrollView,
     Text,
     TextInput,
-    TouchableWithoutFeedback,
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -142,15 +140,19 @@ export default function PatientInfoScreen() {
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
                 style={{ flex: 1 }}
             >
-                <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                    <ScrollView
-                        className="flex-1 px-6 pt-8"
-                        contentContainerStyle={{ paddingBottom: 100 }}
-                        showsVerticalScrollIndicator={false}
-                    >
-                        <Text className="text-xl font-bold text-gray-900 mb-8">
-                            환자 정보를 입력해 주세요.
-                        </Text>
+                <ScrollView
+                    className="flex-1 px-6 pt-8"
+                    contentContainerStyle={{ paddingBottom: 140 }}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode={
+                        Platform.OS === "ios" ? "interactive" : "on-drag"
+                    }
+                    nestedScrollEnabled
+                >
+                    <Text className="text-xl font-bold text-gray-900 mb-8">
+                        환자 정보를 입력해 주세요.
+                    </Text>
 
                         {/* 환자와 관계 */}
                         {renderInput("relationship", "환자와 관계", "자녀, 남편 등")}
@@ -210,8 +212,7 @@ export default function PatientInfoScreen() {
 
                         {/* 몸무게 */}
                         {renderInput("weight", "몸무게", "76", false, "number-pad")}
-                    </ScrollView>
-                </TouchableWithoutFeedback>
+                </ScrollView>
 
                 {/* 하단 버튼 */}
                 <View className="px-6 pb-8 pt-4 bg-white border-t border-gray-100 flex-row gap-3">

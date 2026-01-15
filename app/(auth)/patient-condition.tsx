@@ -2,16 +2,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "expo-router";
 import { Controller, useForm } from "react-hook-form";
+import { useState } from "react";
 import {
     Alert,
-    Keyboard,
     KeyboardAvoidingView,
     Platform,
     Pressable,
     ScrollView,
     Text,
     TextInput,
-    TouchableWithoutFeedback,
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -80,6 +79,10 @@ export default function PatientConditionScreen() {
     });
 
     const notes = watch("notes");
+    const [notesHeight, setNotesHeight] = useState<number>(120);
+    const [reqHeight, setReqHeight] = useState<number>(110);
+
+    const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
     const toYmd = (yyyymmdd: string): string => {
         const digits = String(yyyymmdd).replace(/\\D/g, "");
@@ -203,12 +206,16 @@ export default function PatientConditionScreen() {
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
                 style={{ flex: 1 }}
             >
-                <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                    <ScrollView
-                        className="flex-1 px-6 pt-8"
-                        contentContainerStyle={{ paddingBottom: 100 }}
-                        showsVerticalScrollIndicator={false}
-                    >
+                <ScrollView
+                    className="flex-1 px-6 pt-8"
+                    contentContainerStyle={{ paddingBottom: 140 }}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode={
+                        Platform.OS === "ios" ? "interactive" : "on-drag"
+                    }
+                    nestedScrollEnabled
+                >
                         <Text className="text-xl font-bold text-gray-900 mb-8 leading-8">
                             환자의 현재 증상 혹은 질환 및 상태를{"\n"}모두 입력해 주세요.
                         </Text>
@@ -337,7 +344,7 @@ export default function PatientConditionScreen() {
                                 control={control}
                                 name="notes"
                                 render={({ field: { onChange, value, onBlur } }) => (
-                                    <View className="border border-gray-200 rounded-xl bg-white p-4 h-32">
+                                    <View className="border border-gray-200 rounded-xl bg-white p-4">
                                         <TextInput
                                             className="flex-1 text-base text-gray-900 leading-5"
                                             placeholder="환자의 특이 상태, 복용할 약, 주의사항 등을 입력할 수 있는 영역입니다."
@@ -348,6 +355,14 @@ export default function PatientConditionScreen() {
                                             onBlur={onBlur}
                                             onChangeText={onChange}
                                             maxLength={200}
+                                            scrollEnabled={false}
+                                            style={{ height: notesHeight }}
+                                            onContentSizeChange={(e) => {
+                                                const h = e?.nativeEvent?.contentSize?.height;
+                                                if (typeof h === "number" && Number.isFinite(h)) {
+                                                    setNotesHeight(clamp(h, 120, 260));
+                                                }
+                                            }}
                                         />
                                         <Text className="text-right text-gray-400 text-sm mt-2">
                                             {value?.length || 0}/200
@@ -546,7 +561,7 @@ export default function PatientConditionScreen() {
                                 control={control}
                                 name="requirements"
                                 render={({ field: { onChange, value, onBlur } }) => (
-                                    <View className="border border-gray-200 rounded-xl bg-white p-4 h-28">
+                                    <View className="border border-gray-200 rounded-xl bg-white p-4">
                                         <TextInput
                                             className="flex-1 text-base text-gray-900 leading-5"
                                             placeholder="예) 식사 보조 필요, 이동 시 부축 필요"
@@ -557,13 +572,20 @@ export default function PatientConditionScreen() {
                                             onBlur={onBlur}
                                             onChangeText={onChange}
                                             maxLength={200}
+                                            scrollEnabled={false}
+                                            style={{ height: reqHeight }}
+                                            onContentSizeChange={(e) => {
+                                                const h = e?.nativeEvent?.contentSize?.height;
+                                                if (typeof h === "number" && Number.isFinite(h)) {
+                                                    setReqHeight(clamp(h, 110, 240));
+                                                }
+                                            }}
                                         />
                                     </View>
                                 )}
                             />
                         </View>
-                    </ScrollView>
-                </TouchableWithoutFeedback>
+                </ScrollView>
 
                 {/* 하단 버튼 */}
                 <View className="px-6 pb-8 pt-4 bg-white border-t border-gray-100 flex-row gap-3">
