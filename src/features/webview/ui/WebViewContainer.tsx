@@ -474,8 +474,41 @@ export function WebViewContainer({
         } catch (e) {}
       })();
       (function() {
-        // DEV only: bridge web fetch/XHR errors to RN DEV TRACE (no body/PII).
+        // Release-safe 401 bridge:
+        // - Web client dispatches `dd-auth-401` on any 401.
+        // - In AAB/Release we do NOT enable full fetch/XHR tracing, but we still must heal token expiry.
+        // - This bridge posts a minimal ANALYTICS event (status=401 only, no body/PII) so RN can refresh+reload.
         try {
+          try {
+            if (!window.__ddAuth401BridgeInstalled) {
+              window.__ddAuth401BridgeInstalled = true;
+              var __ddLast401PostAt = 0;
+              function __ddPostAuth401() {
+                try {
+                  var now = Date.now();
+                  if (now - __ddLast401PostAt < 1500) return;
+                  __ddLast401PostAt = now;
+                  var msg = {
+                    type: 'ANALYTICS',
+                    payload: {
+                      event: 'WEB_XHR',
+                      properties: {
+                        status: 401,
+                        method: 'AUTO',
+                        url: (typeof location !== 'undefined' && location && location.href) ? String(location.href) : '',
+                      },
+                    },
+                    timestamp: now,
+                  };
+                  if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
+                    window.ReactNativeWebView.postMessage(JSON.stringify(msg));
+                  }
+                } catch (e) {}
+              }
+              try { window.addEventListener('dd-auth-401', __ddPostAuth401); } catch (e) {}
+            }
+          } catch (e0) {}
+
           // Pull helper fns from window to avoid scoping bugs.
           // (If undefined, hooks will think "token missing" and send auth=0.)
           var __ddIsJwtShape = (window && window.__ddIsJwtShape) ? window.__ddIsJwtShape : function(v) {
