@@ -627,8 +627,10 @@ workflows:
       google_play:
         credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS
         track: internal
-        # Auto-deliver to internal testing track (avoid "임시"/draft mismatch)
-        submit_as_draft: false
+        # Play Console에서 앱이 "draft" 상태면 non-draft 릴리즈 생성이 거부됩니다.
+        # (에러: Only releases with status draft may be created on draft app.)
+        # 따라서 internal 업로드는 draft로 두고, 콘솔에서 '배포 시작/게시'로 전환합니다.
+        submit_as_draft: true
 
   android_guardian_aab_universal_apk_test:
     name: guardian-aab-universal-apk-test
