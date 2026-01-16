@@ -6,7 +6,7 @@ import {
 import { Stack, useRouter, useSegments } from "expo-router";
 import Constants from "expo-constants";
 import { StatusBar } from "expo-status-bar";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Linking,
@@ -244,6 +244,10 @@ function LoadingScreen() {
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const { isLoading, checkAuth } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
+  const segments = useSegments();
+  const router = useRouter();
+  const [bootReady, setBootReady] = useState<boolean>(false);
 
   const appVersion = getAppVersion();
   const minVersion = process.env.EXPO_PUBLIC_MIN_APP_VERSION || "1.0.0";
@@ -256,7 +260,75 @@ export default function RootLayout() {
 
   useProtectedRoute();
 
-  if (isLoading) {
+  // ==========================================================
+  // Boot route stabilization gate
+  // - Prevents "brief wrong screen flash then redirect" on cold start.
+  // - We keep showing LoadingScreen until we are sitting on the correct flow group
+  //   (onboarding/permission/login vs tabs) for the current auth state.
+  // ==========================================================
+  useEffect(() => {
+    if (isLoading) {
+      setBootReady(false);
+      return;
+    }
+
+    const decide = async () => {
+      let onboardingComplete = false;
+      let slidesComplete = false;
+      try {
+        const [v1, v2] = await Promise.all([
+          secureStorage.get(STORAGE_KEYS.ONBOARDING_COMPLETE),
+          secureStorage.get(STORAGE_KEYS.ONBOARDING_SLIDES_COMPLETE),
+        ]);
+        onboardingComplete = v1 === "1" || v1 === "true";
+        slidesComplete = v2 === "1" || v2 === "true";
+      } catch {
+        onboardingComplete = false;
+        slidesComplete = false;
+      }
+
+      const seg0 = segments[0] || "";
+      const seg1 = segments[1] || "";
+
+      // Authenticated → must be in tabs (no onboarding/auth flashes)
+      if (isAuthenticated) {
+        const ok = seg0 === "(tabs)";
+        if (!ok) {
+          setBootReady(false);
+          router.replace("/(tabs)");
+          return;
+        }
+        setBootReady(true);
+        return;
+      }
+
+      // Unauthenticated → must be in onboarding or permission/login per SSOT
+      const target = !slidesComplete
+        ? "/onboarding"
+        : !onboardingComplete
+          ? "/(auth)/permission"
+          : "/onboarding/step3";
+
+      const inAuthGroup = seg0 === "(auth)";
+      const inOnboardingGroup = seg0 === "onboarding";
+
+      const inAllowedAuth =
+        inAuthGroup && (seg1 === "permission" || seg1 === "login");
+      const inAllowedOnboarding = inOnboardingGroup;
+
+      const ok = inAllowedAuth || inAllowedOnboarding;
+      if (!ok) {
+        setBootReady(false);
+        router.replace(target);
+        return;
+      }
+      setBootReady(true);
+    };
+
+    void decide();
+  }, [isLoading, isAuthenticated, segments, router]);
+
+  if (isLoading || !bootReady) {
     return <LoadingScreen />;
   }
 
