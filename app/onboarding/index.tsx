@@ -1,18 +1,18 @@
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Keyboard, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, Keyboard, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 import { LanguagePickerModal, type AppLocale } from "@/shared/ui/LanguagePickerModal";
 import { getAppLocale, setAppLocale } from "@/shared/lib/locale";
 
 function OnboardingIllustration1() {
   return (
-    <View style={styles.illWrap} accessibilityElementsHidden importantForAccessibility="no">
-      <View style={styles.illBlob} />
-      <View style={styles.illIconCircle}>
-        <Ionicons name="heart-outline" size={44} color="#111827" />
-      </View>
+    <View style={styles.imageWrapper} accessibilityElementsHidden importantForAccessibility="no">
+      <Image
+        source={require("@/assets/images/onboarding-1.png")}
+        style={styles.image}
+        resizeMode="contain"
+      />
     </View>
   );
 }
@@ -147,25 +147,8 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: "#171719",
   },
-  illWrap: { width: 180, height: 180, alignItems: "center", justifyContent: "center" },
-  illBlob: {
-    position: "absolute",
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: "rgba(59,130,246,0.22)",
-    transform: [{ translateX: 18 }, { translateY: 16 }],
-  },
-  illIconCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 6,
-    borderColor: "#111827",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FFFFFF",
-  },
+  imageWrapper: { marginTop: 80, justifyContent: "center" },
+  image: { width: 154, height: 125 },
   footer: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 24, backgroundColor: "#FFFFFF" },
   button: {
     backgroundColor: "#0066FF",

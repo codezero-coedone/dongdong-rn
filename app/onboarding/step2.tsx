@@ -1,7 +1,6 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Keyboard, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, Keyboard, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { secureStorage } from "@/shared/lib/storage";
@@ -11,11 +10,12 @@ import { getAppLocale, setAppLocale } from "@/shared/lib/locale";
 
 function OnboardingIllustration2() {
   return (
-    <View style={styles.illWrap} accessibilityElementsHidden importantForAccessibility="no">
-      <View style={[styles.illBlob, { backgroundColor: "rgba(59,130,246,0.20)", transform: [{ translateX: 10 }, { translateY: 20 }] }]} />
-      <View style={styles.illIconCircle}>
-        <Ionicons name="home-outline" size={44} color="#111827" />
-      </View>
+    <View style={styles.imageWrapper} accessibilityElementsHidden importantForAccessibility="no">
+      <Image
+        source={require("@/assets/images/onboarding-2.png")}
+        style={styles.image}
+        resizeMode="contain"
+      />
     </View>
   );
 }
@@ -79,9 +79,7 @@ export default function OnboardingStep2() {
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <View style={styles.frame}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="뒤로">
-            <Ionicons name="chevron-back" size={24} color="#111827" />
-          </TouchableOpacity>
+          <View style={styles.headerSide} />
           <Text style={styles.headerTitle}>{t.header}</Text>
           <TouchableOpacity
             onPress={() => setLangOpen(true)}
@@ -144,6 +142,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#70737C29",
     backgroundColor: "#FFFFFF",
   },
+  headerSide: { width: 24 },
   headerTitle: { fontSize: 17, fontWeight: "600", color: "#000000" },
   langBtn: {
     width: 28,
@@ -173,23 +172,8 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: "#171719",
   },
-  illWrap: { width: 180, height: 180, alignItems: "center", justifyContent: "center" },
-  illBlob: {
-    position: "absolute",
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-  },
-  illIconCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 6,
-    borderColor: "#111827",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FFFFFF",
-  },
+  imageWrapper: { marginTop: 80, justifyContent: "center" },
+  image: { width: 130, height: 120 },
   footer: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 24, backgroundColor: "#FFFFFF" },
   button: {
     backgroundColor: "#0066FF",
