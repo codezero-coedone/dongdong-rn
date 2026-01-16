@@ -10,7 +10,7 @@ import { devlog } from '@/shared/devtools/devlog';
 import { secureStorage } from '@/shared/lib/storage';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect } from 'react';
-import { ActivityIndicator, AppState, Linking, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Linking, Platform, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
 import { useWebViewBridge } from '../lib/useWebViewBridge';
@@ -1157,6 +1157,13 @@ export function WebViewContainer({
             <WebView
                 ref={webViewRef}
                 source={{ uri: url }}
+                // Android WebView quirks:
+                // - Some devices apply text zoom / autosizing that causes font overflow in fixed-height UI.
+                // - Explicitly pin to 100% to match our Figma-based CSS.
+                textZoom={Platform.OS === 'android' ? 100 : undefined}
+                // Ensure touch/scroll works deterministically across Android OEM WebViews.
+                scrollEnabled={true}
+                nestedScrollEnabled={true}
                 onLoadStart={() => {
                     setLoading(true);
                     try {
