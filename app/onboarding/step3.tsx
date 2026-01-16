@@ -1,9 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Keyboard,
   StyleSheet,
   Text,
@@ -14,6 +13,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuthStore } from "@/features/auth";
 import { devlog } from "@/shared/devtools/devlog";
+import { LanguagePickerModal, type AppLocale } from "@/shared/ui/LanguagePickerModal";
+import { getAppLocale, setAppLocale } from "@/shared/lib/locale";
+import { LoginFailModal } from "@/shared/ui/LoginFailModal";
 
 function OnboardingIllustration3() {
   return (
@@ -31,10 +33,34 @@ export default function OnboardingStep3Login() {
   const socialLogin = useAuthStore((s) => s.socialLogin);
   const isLoading = useAuthStore((s) => s.isLoading);
   const DEVTOOLS_ENABLED = Boolean(__DEV__ || process.env.EXPO_PUBLIC_DEVTOOLS === "1");
+  const [locale, setLocale] = useState<AppLocale>("ko");
+  const [langOpen, setLangOpen] = useState(false);
+  const [failOpen, setFailOpen] = useState(false);
 
   useEffect(() => {
     Keyboard.dismiss();
+    void (async () => {
+      const v = await getAppLocale();
+      setLocale(v);
+    })();
   }, []);
+
+  const t = (() => {
+    if (locale === "en") {
+      return {
+        header: "Login",
+        title: "Use personalized care service",
+        desc: "Match, manage and journal care in one place.",
+        kakao: "Start with Kakao",
+      };
+    }
+    return {
+      header: "로그인",
+      title: "맞춤 돌봄 서비스 이용",
+      desc: "간병 매칭부터 관리까지 한 곳에서 해결\n보호자·환자 모두에게 편리한 통합 돌봄 서비스 제공",
+      kakao: "카카오 시작하기",
+    };
+  })();
 
   const handleKakao = async () => {
     try {
@@ -51,52 +77,68 @@ export default function OnboardingStep3Login() {
           meta: { status: e?.response?.status, message: e?.response?.data?.message || e?.message },
         });
       }
-      const msg =
-        e?.response?.data?.message ||
-        e?.message ||
-        "카카오 로그인에 실패했습니다. (키 설정/네트워크 상태를 확인해 주세요.)";
-      Alert.alert("오류", String(msg));
+      setFailOpen(true);
     }
   };
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="뒤로">
-          <Ionicons name="chevron-back" size={24} color="#111827" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>로그인</Text>
-        <View style={{ width: 24 }} />
-      </View>
-
-      <View style={styles.content}>
-        <Text style={styles.title}>맞춤 돌봄 서비스 이용</Text>
-        <Text style={styles.description}>
-          간병 매칭부터 관리까지 한 곳에서 해결{"\n"}
-          보호자·환자 모두에게 편리한 통합 돌봄 서비스 제공
-        </Text>
-
-        <View style={{ height: 80 }} />
-        <OnboardingIllustration3 />
-        <View style={{ flex: 1 }} />
-
-        <View style={{ width: "100%", paddingBottom: 24 }}>
-          <TouchableOpacity
-            onPress={() => void handleKakao()}
-            disabled={isLoading}
-            activeOpacity={isLoading ? 1 : 0.9}
-            style={[styles.kakaoBtn, isLoading && styles.kakaoBtnDisabled]}
-          >
-            <Text style={styles.kakaoText}>카카오 시작하기</Text>
+      <View style={styles.frame}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="뒤로">
+            <Ionicons name="chevron-back" size={24} color="#111827" />
           </TouchableOpacity>
-
-          {isLoading && (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator />
-              <Text style={styles.loadingText}>카카오 로그인 진행 중…</Text>
-            </View>
-          )}
+          <Text style={styles.headerTitle}>{t.header}</Text>
+          <TouchableOpacity
+            onPress={() => setLangOpen(true)}
+            style={styles.langBtn}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="언어 선택"
+          >
+            <Text style={styles.langText}>A</Text>
+          </TouchableOpacity>
         </View>
+
+        <View style={styles.content}>
+          <Text style={styles.title}>{t.title}</Text>
+          <Text style={styles.description}>{t.desc}</Text>
+
+          <View style={{ height: 80 }} />
+          <OnboardingIllustration3 />
+          <View style={{ flex: 1 }} />
+
+          <View style={{ width: "100%", paddingBottom: 24 }}>
+            <TouchableOpacity
+              onPress={() => void handleKakao()}
+              disabled={isLoading}
+              activeOpacity={isLoading ? 1 : 0.9}
+              style={[styles.kakaoBtn, isLoading && styles.kakaoBtnDisabled]}
+            >
+              <Text style={styles.kakaoText}>{t.kakao}</Text>
+            </TouchableOpacity>
+
+            {isLoading && (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator />
+                <Text style={styles.loadingText}>카카오 로그인 진행 중…</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        <LanguagePickerModal
+          visible={langOpen}
+          value={locale}
+          onClose={() => setLangOpen(false)}
+          onSelect={(v) => {
+            setLocale(v);
+            setLangOpen(false);
+            void setAppLocale(v);
+          }}
+        />
+
+        <LoginFailModal visible={failOpen} onClose={() => setFailOpen(false)} />
       </View>
     </SafeAreaView>
   );
@@ -104,6 +146,7 @@ export default function OnboardingStep3Login() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFFFFF" },
+  frame: { flex: 1, width: "100%", maxWidth: 375, alignSelf: "center", backgroundColor: "#FFFFFF" },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -115,6 +158,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   headerTitle: { fontSize: 17, fontWeight: "600", color: "#000000" },
+  langBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: "#111827",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  langText: { fontSize: 14, fontWeight: "900", color: "#111827" },
   content: { flex: 1, alignItems: "center", paddingHorizontal: 24 },
   title: {
     marginTop: 60,
