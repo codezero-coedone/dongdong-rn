@@ -169,6 +169,11 @@ export const WEBVIEW_CONFIG = {
 
     /** 인라인 비디오 재생 허용 (iOS) */
     allowsInlineMediaPlayback: true,
+    /**
+     * iOS: Allow focusing inputs without requiring an extra "user gesture" handshake.
+     * This improves determinism for WebView input/keyboard activation across iOS versions.
+     */
+    keyboardDisplayRequiresUserAction: false,
 } as const;
 
 // ============================================
